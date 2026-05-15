@@ -71,6 +71,16 @@ def dashboard():
     bs      = load_balance_sheet()
     tb      = load_trial_balance()
 
+    # ── Reconcile revenue sheet to P&L total ─────────────────────────────────
+    # The Revenue Excel sheet sums to ~$2.18M across all channels; the P&L
+    # anchor is $1,316,000. Scale monthly values so charts reconcile with KPIs.
+    pl_revenue = pl.get("Total Revenue", 0)
+    raw_total  = rev_df["Total"].sum()
+    if raw_total > 0 and pl_revenue > 0:
+        scale = pl_revenue / raw_total
+        for col in ["Dine_In", "Delivery", "Catering", "Total"]:
+            rev_df[col] = (rev_df[col] * scale).round(0).astype(int)
+
     # ── KPIs ─────────────────────────────────────────────────────────────────
     total_revenue        = pl.get("Total Revenue", 0)
     gross_profit         = pl.get("Gross Profit", 0)
