@@ -227,55 +227,7 @@ def dashboard():
         for label, val, color in zip(cost_labels, cost_vals, cost_colors)
     ]
 
-    # ── Chart 4: Cost Breakdown horizontal bar (replaces waterfall) ───────────
-    fb_costs     = pl.get("Food & Beverage Costs", 0)
-    payroll      = pl.get("Payroll & Staff Costs", 0)
-    rent         = pl.get("Rent & Utilities", 0)
-    marketing    = pl.get("Marketing & Advertising", 0)
-
-    bar_items = sorted([
-        ("F&B / COGS",       fb_costs,  NAVY),
-        ("Payroll",          payroll,   TEAL),
-        ("Rent & Utilities", rent,      TEAL2),
-        ("Marketing",        marketing, TEAL3),
-    ], key=lambda x: x[1])   # ascending → largest bar at top
-
-    fig_cost_bar = go.Figure()
-    for label, val, color in bar_items:
-        fig_cost_bar.add_trace(go.Bar(
-            orientation="h",
-            x=[val], y=[label],
-            text=[f"${val / 1e3:.0f}K"],
-            textposition="outside",
-            textfont=dict(size=11, color="#334155"),
-            marker_color=color, marker_line_width=0,
-            hovertemplate=f"<b>{label}</b><br>${val:,.0f}<extra></extra>",
-            cliponaxis=False, showlegend=False,
-        ))
-    fig_cost_bar.update_layout(
-        paper_bgcolor="white", plot_bgcolor="white",
-        font=_FONT, hoverlabel=_HOVER,
-        title=dict(text="Cost Structure FY2025", font=dict(size=13, color="#1e293b"),
-                   x=0, xanchor="left", pad=dict(l=8, t=4)),
-        showlegend=False,
-        margin=dict(l=120, r=80, t=44, b=32),
-        height=220,
-        bargap=0.3,
-    )
-    fig_cost_bar.update_xaxes(
-        showgrid=True, gridcolor=GRID, gridwidth=1,
-        tickprefix="$", tickformat=",.0f",
-        tickfont=dict(size=10, color=SLATE),
-        linecolor=BORDER, linewidth=1,
-        range=[0, max(fb_costs, payroll) * 1.2],
-    )
-    fig_cost_bar.update_yaxes(
-        showgrid=False, linecolor=BORDER, linewidth=1,
-        tickfont=dict(size=11, color="#1e293b"),
-        automargin=True,
-    )
-
-    # ── Chart 5: Balance Sheet Composition ────────────────────────────────────
+    # ── Chart 4: Balance Sheet Composition ────────────────────────────────────
     fig_bs = go.Figure()
     for name, cat, val, color in [
         ("Current Assets",          "Assets",               current_assets,      TEAL2),
@@ -298,45 +250,57 @@ def dashboard():
         barmode="stack", bargap=0.5,
     )
 
-    # ── Chart 6: Asset Composition donut ─────────────────────────────────────
-    net_ppe = bs.get("Net PPE", 0)
-    asset_labels = ["Cash & Equivalents", "Accounts Receivable", "Inventory",
-                    "Prepaid Expenses", "Net PPE", "Intangible Assets"]
-    asset_vals = [
-        bs.get("Cash & Cash Equivalents", 0),
-        bs.get("Accounts Receivable", 0),
-        bs.get("Inventory", 0),
-        bs.get("Prepaid Expenses", 0),
-        net_ppe,
-        bs.get("Intangible Assets", 0),
-    ]
-    asset_colors = [TEAL, TEAL2, TEAL3, "#99f6e4", NAVY, "#2563eb"]
-    total_assets_d = sum(v for v in asset_vals if v > 0)
-    fig_asset = _donut(
-        asset_labels, asset_vals, asset_colors,
-        "Asset Composition",
-        f"${total_assets_d:,.0f}", "Total Assets",
-    )
-
-    # ── Chart 7: Funding Structure donut ─────────────────────────────────────
-    fund_labels = ["Current Liabilities", "Long-term Debt", "Equity"]
-    fund_vals   = [current_liabilities, non_current_liab, total_equity]
-    fund_colors = [RED, "#b91c1c", GREEN]
-    total_funding = sum(fund_vals)
-    fig_fund = _donut(
-        fund_labels, fund_vals, fund_colors,
-        "How the Business is Funded",
-        f"${total_funding:,.0f}", "Total Funding",
+    # ── Chart 5: Capital Structure horizontal stacked bar ────────────────────
+    fig_capital = go.Figure()
+    for name, val, color in [
+        ("Equity",              total_equity,        GREEN),
+        ("Long-term Debt",      non_current_liab,    "#b91c1c"),
+        ("Current Liabilities", current_liabilities, RED),
+    ]:
+        fig_capital.add_trace(go.Bar(
+            orientation="h",
+            x=[val], y=[""],
+            name=name,
+            marker_color=color, marker_line_width=0,
+            text=[f"${val:,.0f}"],
+            textposition="inside",
+            insidetextanchor="middle",
+            textfont=dict(size=12, color="white", family="Inter, system-ui, sans-serif"),
+            constraintext="inside",
+            hovertemplate=f"<b>{name}</b><br>${val:,.0f}<extra></extra>",
+        ))
+    fig_capital.update_layout(
+        paper_bgcolor="white", plot_bgcolor="white",
+        font=_FONT, hoverlabel=_HOVER,
+        title=dict(text="Capital Structure", font=dict(size=13, color="#1e293b"),
+                   x=0, xanchor="left", pad=dict(l=8, t=4)),
+        barmode="stack",
+        bargap=0.55,
+        showlegend=True,
+        legend=dict(
+            orientation="h", y=-0.12,
+            font=dict(size=11, color=SLATE),
+            bgcolor="rgba(0,0,0,0)", borderwidth=0,
+        ),
+        margin=dict(l=24, r=24, t=48, b=72),
+        xaxis=dict(
+            showgrid=True, gridcolor=GRID, gridwidth=1,
+            tickprefix="$", tickformat=",.0f",
+            tickfont=dict(size=10, color=SLATE),
+            linecolor=BORDER, linewidth=1,
+        ),
+        yaxis=dict(
+            showgrid=False, showticklabels=False,
+            linecolor=BORDER, linewidth=1,
+        ),
     )
 
     charts = dict(
         revenue=_json(fig_rev),
         rev_cost=_json(fig_rvc),
         cost_mix=_json(fig_cost),
-        cost_bar=_json(fig_cost_bar),
         balance_sheet=_json(fig_bs),
-        asset_comp=_json(fig_asset),
-        funding=_json(fig_fund),
+        capital=_json(fig_capital),
     )
 
     return render_template("dashboard.html", kpis=kpis, charts=charts,
