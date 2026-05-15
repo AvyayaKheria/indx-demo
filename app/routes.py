@@ -1,7 +1,6 @@
 import json
 import plotly
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 from flask import Blueprint, render_template
 
 from .loader import load_balance_sheet, load_costs, load_pl, load_revenue, load_trial_balance
@@ -64,6 +63,34 @@ def _layout(title="", margin=None, y_title=None):
             x=0, xanchor="left", pad=dict(l=8, t=4),
         ),
     )
+
+
+def _fmt(v: float) -> str:
+    """Abbreviate an absolute value → $XXK or $X.XXM for bar labels."""
+    v = abs(v)
+    if v >= 1_000_000:
+        return f"${v / 1e6:.2f}M"
+    return f"${v / 1e3:.0f}K"
+
+
+# Section order and account membership for the TB HTML table
+_TB_SECTIONS = [
+    ("ASSETS", [
+        "Cash & Cash Equivalents", "Accounts Receivable", "Inventory",
+        "Prepaid Expenses", "Property Plant & Equipment",
+        "Accumulated Depreciation", "Intangible Assets",
+    ]),
+    ("LIABILITIES", [
+        "Accounts Payable", "Accrued Expenses", "Short-term Loans", "Long-term Debt",
+    ]),
+    ("EQUITY", ["Paid-up Capital", "Retained Earnings"]),
+    ("REVENUE", ["Dine-In Revenue", "Delivery Revenue", "Catering Revenue"]),
+    ("EXPENSES", [
+        "Food & Beverage Costs", "Payroll & Staff Costs", "Rent & Utilities",
+        "Marketing & Advertising", "Depreciation Expense", "Interest Expense",
+        "Tax Expense",
+    ]),
+]
 
 
 def _json(fig: go.Figure) -> str:
@@ -224,7 +251,7 @@ def dashboard():
     )
 
     # ─────────────────────────────────────────────────────────────────────────
-    # Chart 4 — P&L Waterfall
+    # Chart 4 — P&L Waterfall (horizontal — rebuilt from scratch)
     # ─────────────────────────────────────────────────────────────────────────
     fb_costs     = pl.get("Food & Beverage Costs", 0)
     payroll      = pl.get("Payroll & Staff Costs", 0)
@@ -233,39 +260,65 @@ def dashboard():
     depreciation = pl.get("Depreciation", 0)
     interest     = pl.get("Interest Expense", 0)
 
+    # Horizontal layout: y = labels (top→bottom), x = dollar values
     fig_wf = go.Figure(go.Waterfall(
-        orientation="v",
+        orientation="h",
         measure=["absolute", "relative", "total",
                  "relative", "relative", "relative", "total",
                  "relative", "relative", "total"],
-        x=["Revenue", "F&B Costs", "Gross Profit",
-           "Payroll", "Rent", "Marketing", "EBITDA",
-           "Depreciation", "Interest", "Net Profit"],
-        y=[total_revenue, -fb_costs, gross_profit,
+        y=["Revenue", "F&B Costs", "Gross Profit",
+           "Payroll", "Rent & Utilities", "Marketing", "EBITDA",
+           "Depreciation", "Interest Expense", "Net Profit"],
+        x=[total_revenue, -fb_costs, gross_profit,
            -payroll, -rent, -marketing, ebitda,
            -depreciation, -interest, net_profit],
         connector=dict(line=dict(color=BORDER, width=1.5, dash="dot")),
-        increasing=dict(marker=dict(color=TEAL,  line=dict(width=0))),
-        decreasing=dict(marker=dict(color=RED,   line=dict(width=0))),
-        totals=dict(marker=dict(color=NAVY,      line=dict(width=0))),
+        increasing=dict(marker=dict(color=TEAL, line=dict(width=0))),
+        decreasing=dict(marker=dict(color=RED,  line=dict(width=0))),
+        totals=dict(marker=dict(color=NAVY,     line=dict(width=0))),
         textposition="outside",
-        textfont=dict(size=10, color="#334155"),
+        textfont=dict(size=11, color="#334155"),
         text=[
-            f"${total_revenue/1e6:.2f}M",
-            f"−${fb_costs/1e3:.0f}K",
-            f"${gross_profit/1e3:.0f}K",
-            f"−${payroll/1e3:.0f}K",
-            f"−${rent/1e3:.0f}K",
-            f"−${marketing/1e3:.0f}K",
-            f"${ebitda/1e3:.0f}K",
-            f"−${depreciation/1e3:.0f}K",
-            f"−${interest/1e3:.0f}K",
-            f"${net_profit/1e3:.0f}K",
+            _fmt(total_revenue),
+            _fmt(fb_costs),
+            _fmt(gross_profit),
+            _fmt(payroll),
+            _fmt(rent),
+            _fmt(marketing),
+            _fmt(ebitda),
+            _fmt(depreciation),
+            _fmt(interest),
+            _fmt(net_profit),
         ],
-        hovertemplate="<b>%{x}</b><br>$%{y:,.0f}<extra></extra>",
+        hovertemplate="<b>%{y}</b><br>$%{x:,.0f}<extra></extra>",
+        cliponaxis=False,
     ))
-    fig_wf.update_layout(**_layout("P&L Waterfall — FY2025", margin=dict(l=80, r=24, t=48, b=80)))
-    fig_wf.update_xaxes(tickangle=-45)
+    fig_wf.update_layout(
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        font=_FONT,
+        hoverlabel=_HOVER,
+        title=dict(text="P&L Waterfall — FY2025", font=dict(size=13, color="#1e293b"),
+                   x=0, xanchor="left", pad=dict(l=8, t=4)),
+        margin=dict(l=130, r=90, t=48, b=52),
+        height=420,
+        showlegend=False,
+    )
+    fig_wf.update_xaxes(
+        showgrid=True, gridcolor=GRID, gridwidth=1,
+        linecolor=BORDER, linewidth=1,
+        tickprefix="$", tickformat=",.0f",
+        tickfont=dict(size=11, color=SLATE),
+        range=[0, total_revenue * 1.18],
+        title=dict(text="Amount ($)", font=dict(size=11, color=SLATE), standoff=8),
+    )
+    fig_wf.update_yaxes(
+        showgrid=False,
+        linecolor=BORDER, linewidth=1,
+        tickfont=dict(size=12, color="#1e293b"),
+        automargin=True,
+        autorange="reversed",
+    )
 
     # ─────────────────────────────────────────────────────────────────────────
     # Chart 5 — Balance Sheet Composition
@@ -295,122 +348,26 @@ def dashboard():
     )
 
     # ─────────────────────────────────────────────────────────────────────────
-    # Chart 6 — Trial Balance (two horizontal bar subplots)
+    # Trial Balance — HTML table data (no Plotly chart)
     # ─────────────────────────────────────────────────────────────────────────
-    debit_df  = tb[tb["Debit"].notna()  & (tb["Debit"]  > 0)].sort_values("Debit",  ascending=True)
-    credit_df = tb[tb["Credit"].notna() & (tb["Credit"] > 0)].sort_values("Credit", ascending=True)
+    tb_lookup = tb.set_index("Account")
+    tb_sections = []
+    for section_name, accounts in _TB_SECTIONS:
+        rows = []
+        for account in accounts:
+            if account in tb_lookup.index:
+                row    = tb_lookup.loc[account]
+                debit  = float(row["Debit"])  if str(row["Debit"])  != "nan" else 0.0
+                credit = float(row["Credit"]) if str(row["Credit"]) != "nan" else 0.0
+            else:
+                debit, credit = 0.0, 0.0
+            rows.append({"account": account, "debit": debit, "credit": credit})
+        tb_sections.append({"name": section_name, "rows": rows})
 
-    total_debits  = float(debit_df["Debit"].sum())
-    total_credits = float(credit_df["Credit"].sum())
-    is_balanced   = abs(total_debits - total_credits) < 1
-
-    n_d, n_c = len(debit_df), len(credit_df)
-
-    fig_tb = make_subplots(
-        rows=2, cols=1,
-        row_heights=[n_d / (n_d + n_c), n_c / (n_d + n_c)],
-        vertical_spacing=0.10,
-        subplot_titles=["Debit Accounts", "Credit Accounts"],
-    )
-
-    # Debit bars
-    fig_tb.add_trace(go.Bar(
-        orientation="h",
-        x=debit_df["Debit"].tolist(),
-        y=debit_df["Account"].tolist(),
-        text=[f"${v:,.0f}" for v in debit_df["Debit"].tolist()],
-        textposition="outside",
-        textfont=dict(size=10, color=NAVY),
-        marker_color=NAVY, marker_line_width=0,
-        name=f"Total Debits: ${total_debits:,.0f}",
-        hovertemplate="<b>%{y}</b><br>$%{x:,.0f}<extra></extra>",
-        cliponaxis=False,
-    ), row=1, col=1)
-
-    # Credit bars
-    fig_tb.add_trace(go.Bar(
-        orientation="h",
-        x=credit_df["Credit"].tolist(),
-        y=credit_df["Account"].tolist(),
-        text=[f"${v:,.0f}" for v in credit_df["Credit"].tolist()],
-        textposition="outside",
-        textfont=dict(size=10, color=TEAL),
-        marker_color=TEAL, marker_line_width=0,
-        name=f"Total Credits: ${total_credits:,.0f}",
-        hovertemplate="<b>%{y}</b><br>$%{x:,.0f}<extra></extra>",
-        cliponaxis=False,
-    ), row=2, col=1)
-
-    # Style all x-axes (horizontal value axes)
-    fig_tb.update_xaxes(
-        showgrid=True, gridcolor=GRID, gridwidth=1,
-        linecolor=BORDER, linewidth=1,
-        tickfont=dict(size=10, color=SLATE),
-        tickprefix="$", tickformat=",.0f",
-        zeroline=False,
-    )
-    # Style all y-axes (account name axes)
-    fig_tb.update_yaxes(
-        showgrid=False,
-        linecolor=BORDER, linewidth=1,
-        tickfont=dict(size=11, color="#1e293b"),
-        automargin=True,
-    )
-
-    # Subplot title font
-    for ann in fig_tb.layout.annotations:
-        ann.update(font=dict(size=11, color=SLATE, family="Inter, system-ui, sans-serif"),
-                   x=0, xanchor="left")
-
-    # Balance footnote
-    if is_balanced:
-        fn_text  = f"✓ Trial balance is balanced — Total Debits = Total Credits = ${total_debits:,.0f}"
-        fn_color = "#166534"
-        fn_bg    = "#f0fdf4"
-        fn_border= "#bbf7d0"
-    else:
-        diff = abs(total_debits - total_credits)
-        fn_text  = (f"⚠ Trial balance does not balance — "
-                    f"Debits: ${total_debits:,.0f}  |  Credits: ${total_credits:,.0f}  |  "
-                    f"Difference: ${diff:,.0f}")
-        fn_color = "#991b1b"
-        fn_bg    = "#fef2f2"
-        fn_border= "#fecaca"
-
-    fig_tb.add_annotation(
-        text=fn_text,
-        xref="paper", yref="paper",
-        x=0, y=-0.04,
-        showarrow=False,
-        font=dict(size=10, color=fn_color, family="Inter, system-ui, sans-serif"),
-        bgcolor=fn_bg,
-        borderpad=5,
-        bordercolor=fn_border,
-        borderwidth=1,
-        xanchor="left",
-        align="left",
-    )
-
-    fig_tb.update_layout(
-        paper_bgcolor="white",
-        plot_bgcolor="white",
-        font=_FONT,
-        hoverlabel=_HOVER,
-        title=dict(
-            text="Trial Balance FY2025 — Debit & Credit Accounts",
-            font=dict(size=13, color="#1e293b"),
-            x=0, xanchor="left", pad=dict(l=8, t=4),
-        ),
-        showlegend=True,
-        legend=dict(
-            orientation="h", x=0, y=-0.08,
-            font=dict(size=11, color=SLATE),
-            bgcolor="rgba(0,0,0,0)", borderwidth=0,
-        ),
-        margin=dict(l=210, r=90, t=52, b=90),
-        height=580,
-        bargap=0.25,
-    )
+    tb_totals = {
+        "debit":  float(tb["Debit"].fillna(0).sum()),
+        "credit": float(tb["Credit"].fillna(0).sum()),
+    }
 
     charts = dict(
         revenue=_json(fig_rev),
@@ -418,7 +375,7 @@ def dashboard():
         cost_mix=_json(fig_cost),
         waterfall=_json(fig_wf),
         balance_sheet=_json(fig_bs),
-        trial_balance=_json(fig_tb),
     )
 
-    return render_template("dashboard.html", kpis=kpis, charts=charts)
+    return render_template("dashboard.html", kpis=kpis, charts=charts,
+                           tb_sections=tb_sections, tb_totals=tb_totals)

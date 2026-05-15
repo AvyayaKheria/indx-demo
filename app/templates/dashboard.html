@@ -228,6 +228,96 @@
     .chart-plot.xl {
       height: 600px;
     }
+    .chart-plot.wf {
+      height: 440px;
+    }
+
+    /* ── Trial Balance table ────────────────────────────────────────────── */
+    .tb-card {
+      background: var(--white);
+      border: 1px solid var(--slate-200);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .tb-title {
+      padding: 16px 20px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #1e293b;
+      border-bottom: 1px solid var(--slate-200);
+      flex-shrink: 0;
+    }
+    .tb-scroll {
+      overflow-y: auto;
+      max-height: 560px;
+      flex: 1;
+    }
+    .tb-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+      font-variant-numeric: tabular-nums;
+    }
+    .tb-table thead th {
+      background: var(--navy);
+      color: white;
+      padding: 9px 16px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    .tb-table thead th:nth-child(2),
+    .tb-table thead th:nth-child(3) {
+      text-align: right;
+      width: 120px;
+    }
+    .tb-section td {
+      background: var(--slate-100);
+      color: var(--slate-500);
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: 7px 16px;
+      border-top: 1px solid var(--slate-200);
+    }
+    .tb-row td {
+      padding: 7px 16px;
+      color: var(--slate-700);
+      border-bottom: 1px solid var(--slate-100);
+    }
+    .tb-row:nth-child(even) td { background: var(--slate-50); }
+    .tb-row td:nth-child(2),
+    .tb-row td:nth-child(3) {
+      text-align: right;
+      font-family: 'Inter', monospace;
+      color: var(--slate-600);
+    }
+    .tb-row td.has-value {
+      color: var(--slate-900);
+      font-weight: 500;
+    }
+    .tb-nil { color: var(--slate-300) !important; font-weight: 400 !important; }
+    .tb-total td {
+      padding: 10px 16px;
+      font-weight: 700;
+      font-size: 13px;
+      color: var(--slate-900);
+      background: var(--slate-50);
+      border-top: 2px solid var(--slate-300);
+    }
+    .tb-total td:nth-child(2),
+    .tb-total td:nth-child(3) {
+      text-align: right;
+      color: var(--navy);
+    }
 
     /* ── Footer ─────────────────────────────────────────────────────────── */
     .footer {
@@ -407,7 +497,7 @@
         <div class="chart-plot" id="chart-cost-mix"></div>
       </div>
       <div class="chart-card">
-        <div class="chart-plot" id="chart-waterfall"></div>
+        <div class="chart-plot wf" id="chart-waterfall"></div>
       </div>
     </div>
   </section>
@@ -422,8 +512,42 @@
       <div class="chart-card">
         <div class="chart-plot" id="chart-bs"></div>
       </div>
-      <div class="chart-card">
-        <div class="chart-plot xl" id="chart-tb"></div>
+      <div class="tb-card">
+        <div class="tb-title">Trial Balance FY2025 — Debit &amp; Credit Accounts</div>
+        <div class="tb-scroll">
+          <table class="tb-table">
+            <thead>
+              <tr>
+                <th>Account</th>
+                <th>Debit ($)</th>
+                <th>Credit ($)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for section in tb_sections %}
+              <tr class="tb-section">
+                <td colspan="3">{{ section.name }}</td>
+              </tr>
+              {% for row in section.rows %}
+              <tr class="tb-row">
+                <td>{{ row.account }}</td>
+                <td class="{{ 'has-value' if row.debit > 0 else 'tb-nil' }}">
+                  {% if row.debit > 0 %}${{ "{:,.0f}".format(row.debit) }}{% else %}—{% endif %}
+                </td>
+                <td class="{{ 'has-value' if row.credit > 0 else 'tb-nil' }}">
+                  {% if row.credit > 0 %}${{ "{:,.0f}".format(row.credit) }}{% else %}—{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+              {% endfor %}
+              <tr class="tb-total">
+                <td>TOTAL</td>
+                <td>${{ "{:,.0f}".format(tb_totals.debit) }}</td>
+                <td>${{ "{:,.0f}".format(tb_totals.credit) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </section>
@@ -451,7 +575,6 @@
   Plotly.newPlot('chart-cost-mix',  {{ charts.cost_mix | safe }},      {}, cfg);
   Plotly.newPlot('chart-waterfall', {{ charts.waterfall | safe }},     {}, cfg);
   Plotly.newPlot('chart-bs',        {{ charts.balance_sheet | safe }}, {}, cfg);
-  Plotly.newPlot('chart-tb',        {{ charts.trial_balance | safe }}, {}, cfg);
 </script>
 
 </body>
