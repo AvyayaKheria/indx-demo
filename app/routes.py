@@ -43,58 +43,56 @@ _YAXIS = dict(
 
 
 def _layout(title="", margin=None, y_title=None):
-    """Base layout for all standard (non-subplot) charts."""
     yaxis = dict(_YAXIS)
     if y_title:
         yaxis["title"] = dict(text=y_title, font=dict(size=11, color=SLATE), standoff=12)
     m = margin or dict(l=80, r=24, t=48, b=64)
     return dict(
-        paper_bgcolor="white",
-        plot_bgcolor="white",
-        font=_FONT,
-        hoverlabel=_HOVER,
-        legend=_LEGEND,
-        xaxis=dict(_XAXIS),
-        yaxis=yaxis,
-        margin=m,
-        title=dict(
-            text=title,
-            font=dict(size=13, color="#1e293b"),
-            x=0, xanchor="left", pad=dict(l=8, t=4),
-        ),
+        paper_bgcolor="white", plot_bgcolor="white",
+        font=_FONT, hoverlabel=_HOVER, legend=_LEGEND,
+        xaxis=dict(_XAXIS), yaxis=yaxis, margin=m,
+        title=dict(text=title, font=dict(size=13, color="#1e293b"),
+                   x=0, xanchor="left", pad=dict(l=8, t=4)),
     )
 
 
 def _fmt(v: float) -> str:
-    """Abbreviate an absolute value → $XXK or $X.XXM for bar labels."""
     v = abs(v)
     if v >= 1_000_000:
         return f"${v / 1e6:.2f}M"
     return f"${v / 1e3:.0f}K"
 
 
-# Section order and account membership for the TB HTML table
-_TB_SECTIONS = [
-    ("ASSETS", [
-        "Cash & Cash Equivalents", "Accounts Receivable", "Inventory",
-        "Prepaid Expenses", "Property Plant & Equipment",
-        "Accumulated Depreciation", "Intangible Assets",
-    ]),
-    ("LIABILITIES", [
-        "Accounts Payable", "Accrued Expenses", "Short-term Loans", "Long-term Debt",
-    ]),
-    ("EQUITY", ["Paid-up Capital", "Retained Earnings"]),
-    ("REVENUE", ["Dine-In Revenue", "Delivery Revenue", "Catering Revenue"]),
-    ("EXPENSES", [
-        "Food & Beverage Costs", "Payroll & Staff Costs", "Rent & Utilities",
-        "Marketing & Advertising", "Depreciation Expense", "Interest Expense",
-        "Tax Expense",
-    ]),
-]
-
-
 def _json(fig: go.Figure) -> str:
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
+
+def _donut(labels, values, colors, title, centre_top, centre_sub):
+    """Build a clean donut figure with no slice labels and a centre annotation."""
+    fig = go.Figure(go.Pie(
+        labels=labels, values=values,
+        hole=0.54,
+        marker=dict(colors=colors, line=dict(color="white", width=2.5)),
+        textinfo="none",
+        hovertemplate="<b>%{label}</b><br>$%{value:,.0f} · %{percent}<extra></extra>",
+        sort=False, direction="clockwise",
+    ))
+    fig.add_annotation(
+        text=f"<b>{centre_top}</b><br>{centre_sub}",
+        x=0.5, y=0.5, showarrow=False,
+        font=dict(size=13, color=NAVY), align="center",
+    )
+    fig.update_layout(
+        paper_bgcolor="white", plot_bgcolor="white",
+        font=_FONT, hoverlabel=_HOVER,
+        title=dict(text=title, font=dict(size=13, color="#1e293b"),
+                   x=0, xanchor="left", pad=dict(l=8, t=4)),
+        showlegend=True,
+        legend=dict(orientation="h", y=-0.08,
+                    font=dict(size=11, color=SLATE), bgcolor="rgba(0,0,0,0)"),
+        margin=dict(l=20, r=20, t=48, b=72),
+    )
+    return fig
 
 
 @main.route("/")
@@ -103,7 +101,7 @@ def dashboard():
     cost_df = load_costs()
     pl      = load_pl()
     bs      = load_balance_sheet()
-    tb      = load_trial_balance()
+    load_trial_balance()         # kept for data integrity; unused in charts
 
     # ── Reconcile monthly revenue to P&L total ────────────────────────────────
     pl_revenue = pl.get("Total Revenue", 0)
@@ -142,9 +140,7 @@ def dashboard():
 
     months = rev_df["Month"].tolist()
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # Chart 1 — Monthly Revenue by Channel (stacked bar + total labels)
-    # ─────────────────────────────────────────────────────────────────────────
+    # ── Chart 1: Revenue by channel ───────────────────────────────────────────
     fig_rev = go.Figure()
     for col, color, label in [
         ("Dine_In",  NAVY,  "Dine-In"),
@@ -156,33 +152,25 @@ def dashboard():
             marker_color=color, marker_line_width=0,
             hovertemplate=f"<b>%{{x}}</b><br>{label}: $%{{y:,.0f}}<extra></extra>",
         ))
-
-    # Monthly total labels above each stacked bar
     for month, total in zip(months, rev_df["Total"].tolist()):
         fig_rev.add_annotation(
             x=month, y=total,
             text=f"<b>${total/1e3:.0f}K</b>",
-            showarrow=False,
-            yanchor="bottom", yshift=5,
+            showarrow=False, yanchor="bottom", yshift=5,
             font=dict(size=9, color=SLATE),
         )
-
     fig_rev.update_layout(
         **_layout("Monthly Revenue by Channel", y_title="Monthly Revenue ($)"),
-        barmode="stack",
-        bargap=0.35,
+        barmode="stack", bargap=0.35,
     )
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # Chart 2 — Revenue vs Costs vs Operating Profit (line)
-    # ─────────────────────────────────────────────────────────────────────────
+    # ── Chart 2: Revenue vs Costs ─────────────────────────────────────────────
     fig_rvc = go.Figure()
     profit_monthly = [r - c for r, c in zip(rev_df["Total"].tolist(), cost_df["Total"].tolist())]
-
     for y_vals, color, name, dash in [
-        (rev_df["Total"].tolist(),  NAVY,  "Revenue",          "solid"),
-        (cost_df["Total"].tolist(), RED,   "Total Costs",      "solid"),
-        (profit_monthly,            TEAL,  "Operating Profit", "dot"),
+        (rev_df["Total"].tolist(),  NAVY, "Revenue",          "solid"),
+        (cost_df["Total"].tolist(), RED,  "Total Costs",      "solid"),
+        (profit_monthly,            TEAL, "Operating Profit", "dot"),
     ]:
         fig_rvc.add_trace(go.Scatter(
             x=months, y=y_vals, name=name, mode="lines+markers",
@@ -190,154 +178,117 @@ def dashboard():
             marker=dict(size=7, color=color, line=dict(color="white", width=1.5)),
             hovertemplate=f"<b>%{{x}}</b><br>{name}: $%{{y:,.0f}}<extra></extra>",
         ))
-
-    # Min/max annotations on Revenue line
     rev_vals = rev_df["Total"].tolist()
     max_v, min_v = max(rev_vals), min(rev_vals)
-    max_m, min_m = months[rev_vals.index(max_v)], months[rev_vals.index(min_v)]
-
     for month, val, label, color, ay in [
-        (max_m, max_v, f"Peak  ${max_v/1e3:.0f}K", GREEN, -36),
-        (min_m, min_v, f"Low  ${min_v/1e3:.0f}K",  RED,    36),
+        (months[rev_vals.index(max_v)], max_v, f"Peak  ${max_v/1e3:.0f}K", GREEN, -36),
+        (months[rev_vals.index(min_v)], min_v, f"Low  ${min_v/1e3:.0f}K",  RED,    36),
     ]:
         fig_rvc.add_annotation(
             x=month, y=val, text=label,
             showarrow=True, arrowhead=2, arrowsize=0.8, arrowwidth=1.5,
             arrowcolor=color, ax=0, ay=ay,
             font=dict(size=10, color=color),
-            bgcolor="white", borderpad=3,
-            bordercolor=color, borderwidth=1,
+            bgcolor="white", borderpad=3, bordercolor=color, borderwidth=1,
         )
-
     fig_rvc.update_layout(**_layout("Revenue vs Costs vs Operating Profit", y_title="Amount ($)"))
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # Chart 3 — Cost Mix donut
-    # ─────────────────────────────────────────────────────────────────────────
+    # ── Chart 3: Cost Mix donut (no slice labels — custom HTML legend) ─────────
     cost_labels = ["F&B / COGS", "Payroll", "Rent & Utilities", "Marketing"]
+    cost_colors = [NAVY, TEAL, TEAL2, TEAL3]
     cost_vals   = [int(cost_df[c].sum()) for c in ["COGS", "Payroll", "Rent", "Marketing"]]
     total_costs = sum(cost_vals)
 
     fig_cost = go.Figure(go.Pie(
-        labels=cost_labels,
-        values=cost_vals,
+        labels=cost_labels, values=cost_vals,
         hole=0.54,
-        marker=dict(colors=[NAVY, TEAL, TEAL2, TEAL3], line=dict(color="white", width=2.5)),
-        texttemplate="<b>%{label}</b><br>$%{value:,.0f}<br>(%{percent})",
-        textfont=dict(size=10),
+        marker=dict(colors=cost_colors, line=dict(color="white", width=2.5)),
+        textinfo="none",
         hovertemplate="<b>%{label}</b><br>$%{value:,.0f} · %{percent}<extra></extra>",
-        sort=False,
-        automargin=True,
-        direction="clockwise",
+        sort=False, direction="clockwise",
     ))
-
-    # Total cost in donut centre
     fig_cost.add_annotation(
-        text=f"<b>${total_costs/1e6:.2f}M</b><br><span style='font-size:10px'>Total Costs</span>",
+        text=f"<b>${total_costs/1e6:.2f}M</b><br>Total Costs",
         x=0.5, y=0.5, showarrow=False,
-        font=dict(size=14, color=NAVY),
-        align="center",
+        font=dict(size=14, color=NAVY), align="center",
     )
-
     fig_cost.update_layout(
         paper_bgcolor="white", plot_bgcolor="white",
         font=_FONT, hoverlabel=_HOVER,
         title=dict(text="Cost Mix — FY2025", font=dict(size=13, color="#1e293b"),
                    x=0, xanchor="left", pad=dict(l=8, t=4)),
-        margin=dict(l=24, r=24, t=48, b=72),
-        legend=dict(orientation="h", y=-0.1, font=dict(size=11, color=SLATE),
-                    bgcolor="rgba(0,0,0,0)"),
-        showlegend=True,
+        showlegend=False,
+        margin=dict(l=24, r=24, t=48, b=16),
     )
+    cost_legend = [
+        {"label": label, "value": val,
+         "pct": f"{val / total_costs * 100:.1f}%",
+         "color": color}
+        for label, val, color in zip(cost_labels, cost_vals, cost_colors)
+    ]
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # Chart 4 — P&L Waterfall (horizontal — rebuilt from scratch)
-    # ─────────────────────────────────────────────────────────────────────────
+    # ── Chart 4: Cost Breakdown horizontal bar (replaces waterfall) ───────────
     fb_costs     = pl.get("Food & Beverage Costs", 0)
     payroll      = pl.get("Payroll & Staff Costs", 0)
     rent         = pl.get("Rent & Utilities", 0)
     marketing    = pl.get("Marketing & Advertising", 0)
-    depreciation = pl.get("Depreciation", 0)
-    interest     = pl.get("Interest Expense", 0)
 
-    # Horizontal layout: y = labels (top→bottom), x = dollar values
-    fig_wf = go.Figure(go.Waterfall(
-        orientation="h",
-        measure=["absolute", "relative", "total",
-                 "relative", "relative", "relative", "total",
-                 "relative", "relative", "total"],
-        y=["Revenue", "F&B Costs", "Gross Profit",
-           "Payroll", "Rent & Utilities", "Marketing", "EBITDA",
-           "Depreciation", "Interest Expense", "Net Profit"],
-        x=[total_revenue, -fb_costs, gross_profit,
-           -payroll, -rent, -marketing, ebitda,
-           -depreciation, -interest, net_profit],
-        connector=dict(line=dict(color=BORDER, width=1.5, dash="dot")),
-        increasing=dict(marker=dict(color=TEAL, line=dict(width=0))),
-        decreasing=dict(marker=dict(color=RED,  line=dict(width=0))),
-        totals=dict(marker=dict(color=NAVY,     line=dict(width=0))),
-        textposition="outside",
-        textfont=dict(size=11, color="#334155"),
-        text=[
-            _fmt(total_revenue),
-            _fmt(fb_costs),
-            _fmt(gross_profit),
-            _fmt(payroll),
-            _fmt(rent),
-            _fmt(marketing),
-            _fmt(ebitda),
-            _fmt(depreciation),
-            _fmt(interest),
-            _fmt(net_profit),
-        ],
-        hovertemplate="<b>%{y}</b><br>$%{x:,.0f}<extra></extra>",
-        cliponaxis=False,
-    ))
-    fig_wf.update_layout(
-        paper_bgcolor="white",
-        plot_bgcolor="white",
-        font=_FONT,
-        hoverlabel=_HOVER,
-        title=dict(text="P&L Waterfall — FY2025", font=dict(size=13, color="#1e293b"),
+    bar_items = sorted([
+        ("F&B / COGS",       fb_costs,  NAVY),
+        ("Payroll",          payroll,   TEAL),
+        ("Rent & Utilities", rent,      TEAL2),
+        ("Marketing",        marketing, TEAL3),
+    ], key=lambda x: x[1])   # ascending → largest bar at top
+
+    fig_cost_bar = go.Figure()
+    for label, val, color in bar_items:
+        fig_cost_bar.add_trace(go.Bar(
+            orientation="h",
+            x=[val], y=[label],
+            text=[f"${val / 1e3:.0f}K"],
+            textposition="outside",
+            textfont=dict(size=11, color="#334155"),
+            marker_color=color, marker_line_width=0,
+            hovertemplate=f"<b>{label}</b><br>${val:,.0f}<extra></extra>",
+            cliponaxis=False, showlegend=False,
+        ))
+    fig_cost_bar.update_layout(
+        paper_bgcolor="white", plot_bgcolor="white",
+        font=_FONT, hoverlabel=_HOVER,
+        title=dict(text="Cost Structure FY2025", font=dict(size=13, color="#1e293b"),
                    x=0, xanchor="left", pad=dict(l=8, t=4)),
-        margin=dict(l=130, r=90, t=48, b=52),
-        height=420,
         showlegend=False,
+        margin=dict(l=120, r=80, t=44, b=32),
+        height=220,
+        bargap=0.3,
     )
-    fig_wf.update_xaxes(
+    fig_cost_bar.update_xaxes(
         showgrid=True, gridcolor=GRID, gridwidth=1,
-        linecolor=BORDER, linewidth=1,
         tickprefix="$", tickformat=",.0f",
-        tickfont=dict(size=11, color=SLATE),
-        range=[0, total_revenue * 1.18],
-        title=dict(text="Amount ($)", font=dict(size=11, color=SLATE), standoff=8),
-    )
-    fig_wf.update_yaxes(
-        showgrid=False,
+        tickfont=dict(size=10, color=SLATE),
         linecolor=BORDER, linewidth=1,
-        tickfont=dict(size=12, color="#1e293b"),
+        range=[0, max(fb_costs, payroll) * 1.2],
+    )
+    fig_cost_bar.update_yaxes(
+        showgrid=False, linecolor=BORDER, linewidth=1,
+        tickfont=dict(size=11, color="#1e293b"),
         automargin=True,
-        autorange="reversed",
     )
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # Chart 5 — Balance Sheet Composition
-    # ─────────────────────────────────────────────────────────────────────────
+    # ── Chart 5: Balance Sheet Composition ────────────────────────────────────
     fig_bs = go.Figure()
-    bs_items = [
-        ("Current Assets",          "Assets",               current_assets,     TEAL2),
-        ("Non-Current Assets",      "Assets",               non_current_assets, NAVY),
-        ("Current Liabilities",     "Liabilities & Equity", current_liabilities,  RED),
-        ("Non-Current Liabilities", "Liabilities & Equity", non_current_liab,     "#b91c1c"),
-        ("Equity",                  "Liabilities & Equity", total_equity,          GREEN),
-    ]
-    for name, cat, val, color in bs_items:
+    for name, cat, val, color in [
+        ("Current Assets",          "Assets",               current_assets,      TEAL2),
+        ("Non-Current Assets",      "Assets",               non_current_assets,  NAVY),
+        ("Current Liabilities",     "Liabilities & Equity", current_liabilities, RED),
+        ("Non-Current Liabilities", "Liabilities & Equity", non_current_liab,    "#b91c1c"),
+        ("Equity",                  "Liabilities & Equity", total_equity,         GREEN),
+    ]:
         fig_bs.add_trace(go.Bar(
             name=name, x=[cat], y=[val],
             marker_color=color, marker_line_width=0,
             text=[f"${val:,.0f}"],
-            textposition="inside",
-            insidetextanchor="middle",
+            textposition="inside", insidetextanchor="middle",
             textfont=dict(size=10, color="white"),
             constraintext="inside",
             hovertemplate=f"<b>{name}</b><br>${val:,.0f}<extra></extra>",
@@ -347,35 +298,46 @@ def dashboard():
         barmode="stack", bargap=0.5,
     )
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # Trial Balance — HTML table data (no Plotly chart)
-    # ─────────────────────────────────────────────────────────────────────────
-    tb_lookup = tb.set_index("Account")
-    tb_sections = []
-    for section_name, accounts in _TB_SECTIONS:
-        rows = []
-        for account in accounts:
-            if account in tb_lookup.index:
-                row    = tb_lookup.loc[account]
-                debit  = float(row["Debit"])  if str(row["Debit"])  != "nan" else 0.0
-                credit = float(row["Credit"]) if str(row["Credit"]) != "nan" else 0.0
-            else:
-                debit, credit = 0.0, 0.0
-            rows.append({"account": account, "debit": debit, "credit": credit})
-        tb_sections.append({"name": section_name, "rows": rows})
+    # ── Chart 6: Asset Composition donut ─────────────────────────────────────
+    net_ppe = bs.get("Net PPE", 0)
+    asset_labels = ["Cash & Equivalents", "Accounts Receivable", "Inventory",
+                    "Prepaid Expenses", "Net PPE", "Intangible Assets"]
+    asset_vals = [
+        bs.get("Cash & Cash Equivalents", 0),
+        bs.get("Accounts Receivable", 0),
+        bs.get("Inventory", 0),
+        bs.get("Prepaid Expenses", 0),
+        net_ppe,
+        bs.get("Intangible Assets", 0),
+    ]
+    asset_colors = [TEAL, TEAL2, TEAL3, "#99f6e4", NAVY, "#2563eb"]
+    total_assets_d = sum(v for v in asset_vals if v > 0)
+    fig_asset = _donut(
+        asset_labels, asset_vals, asset_colors,
+        "Asset Composition",
+        f"${total_assets_d:,.0f}", "Total Assets",
+    )
 
-    tb_totals = {
-        "debit":  float(tb["Debit"].fillna(0).sum()),
-        "credit": float(tb["Credit"].fillna(0).sum()),
-    }
+    # ── Chart 7: Funding Structure donut ─────────────────────────────────────
+    fund_labels = ["Current Liabilities", "Long-term Debt", "Equity"]
+    fund_vals   = [current_liabilities, non_current_liab, total_equity]
+    fund_colors = [RED, "#b91c1c", GREEN]
+    total_funding = sum(fund_vals)
+    fig_fund = _donut(
+        fund_labels, fund_vals, fund_colors,
+        "How the Business is Funded",
+        f"${total_funding:,.0f}", "Total Funding",
+    )
 
     charts = dict(
         revenue=_json(fig_rev),
         rev_cost=_json(fig_rvc),
         cost_mix=_json(fig_cost),
-        waterfall=_json(fig_wf),
+        cost_bar=_json(fig_cost_bar),
         balance_sheet=_json(fig_bs),
+        asset_comp=_json(fig_asset),
+        funding=_json(fig_fund),
     )
 
     return render_template("dashboard.html", kpis=kpis, charts=charts,
-                           tb_sections=tb_sections, tb_totals=tb_totals)
+                           cost_legend=cost_legend)
