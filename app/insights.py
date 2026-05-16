@@ -14,7 +14,16 @@ import os
 import json
 from pathlib import Path
 
-MODEL = "claude-3-5-sonnet-20241022"   # universally available across all account tiers
+# Model preference order — we'll pick the first one the account can access
+_MODEL_PREFERENCE = [
+    "claude-3-5-sonnet-20241022",
+    "claude-3-5-haiku-20241022",
+    "claude-3-7-sonnet-20250219",
+    "claude-sonnet-4-5",
+    "claude-3-opus-20240229",
+    "claude-3-sonnet-20240229",
+    "claude-3-haiku-20240307",
+]
 
 
 # ── Industry benchmarks injected into the prompt ─────────────────────────────
@@ -118,11 +127,25 @@ def generate_insights(kpis: dict) -> tuple[list[dict], str | None]:
 
     try:
         client = anthropic.Anthropic(api_key=api_key)
-        resp = client.messages.create(
-            model=MODEL,
-            max_tokens=2048,
-            messages=[{"role": "user", "content": prompt}],
-        )
+
+        # Auto-detect the first model this account can actually use
+        resp = None
+        last_err = None
+        for model_id in _MODEL_PREFERENCE:
+            try:
+                resp = client.messages.create(
+                    model=model_id,
+                    max_tokens=2048,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                break  # success
+            except Exception as e:
+                last_err = e
+                # Only continue on 404 (model not found); bail on auth/billing errors
+                if "not_found" not in str(e).lower():
+                    raise e
+        if resp is None:
+            raise last_err
         raw = resp.content[0].text.strip()
 
         # Strip any accidental markdown fences
