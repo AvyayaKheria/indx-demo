@@ -155,6 +155,16 @@ def _has_extracted_json(data_dir) -> bool:
     )
 
 
+# ── In-memory result cache ────────────────────────────────────────────────────
+# Key: str(data_dir) or "__demo__".  Value: (kpis, charts, cost_legend).
+# Session data is immutable after upload so a simple dict is safe.
+_DASH_CACHE: dict = {}
+
+
+def _cache_key(data_dir) -> str:
+    return "__demo__" if data_dir is None else str(data_dir)
+
+
 # ── Core dashboard builder ────────────────────────────────────────────────────
 
 def _build_dashboard_data(data_dir=None):
@@ -162,7 +172,12 @@ def _build_dashboard_data(data_dir=None):
     Load data and build all KPIs and charts.
     Uses AI-extracted JSON when available; falls back to raw Excel loaders.
     Returns (kpis dict, charts dict, cost_legend list).
+    Result is cached in _DASH_CACHE so repeated hits (demo + session views) are instant.
     """
+    ck = _cache_key(data_dir)
+    if ck in _DASH_CACHE:
+        return _DASH_CACHE[ck]
+
     if _has_extracted_json(data_dir):
         rev_df  = load_revenue_json(data_dir)
         cost_df = load_costs_json(data_dir)
@@ -376,6 +391,7 @@ def _build_dashboard_data(data_dir=None):
         capital=_json(fig_capital),
     )
 
+    _DASH_CACHE[ck] = (kpis, charts, cost_legend)
     return kpis, charts, cost_legend
 
 

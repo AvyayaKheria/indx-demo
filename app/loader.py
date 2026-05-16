@@ -32,10 +32,17 @@ def load_revenue(data_dir=None) -> pd.DataFrame:
     path = _resolve(data_dir, "revenue.xlsx", "GrainCo_Revenue_FY2025.xlsx")
     df = pd.read_excel(path, header=1)
     ncols = len(df.columns)
-    if ncols >= 3:
-        # First col = Month, last col = Total, middle cols = channels
-        channel_names = [f"Channel{i+1}" for i in range(ncols - 2)]
-        _force_columns(df, ["Month"] + channel_names + ["Total"])
+    if data_dir is None:
+        # Demo (Grain & Co) — known exact shape; use real column names
+        _force_columns(df, ["Month", "Dine-In", "Delivery", "Catering", "Total"])
+    elif ncols >= 3:
+        # Uploaded file — use the actual header names that pandas read
+        # (they were already set from the Excel header row; just ensure
+        # the first column is called "Month" and the last is called "Total")
+        cols = list(df.columns)
+        cols[0] = "Month"
+        cols[-1] = "Total"
+        df.columns = cols
     else:
         df.columns = [f"Col{i}" for i in range(ncols)]
         df.rename(columns={df.columns[0]: "Month"}, inplace=True)
@@ -49,9 +56,14 @@ def load_costs(data_dir=None) -> pd.DataFrame:
     path = _resolve(data_dir, "costs.xlsx", "GrainCo_Costs_FY2025.xlsx")
     df = pd.read_excel(path, header=1)
     ncols = len(df.columns)
-    if ncols >= 3:
-        cat_names = [f"Category{i+1}" for i in range(ncols - 2)]
-        _force_columns(df, ["Month"] + cat_names + ["Total"])
+    if data_dir is None:
+        # Demo — known exact shape
+        _force_columns(df, ["Month", "COGS", "Payroll", "Rent", "Marketing", "Total"])
+    elif ncols >= 3:
+        cols = list(df.columns)
+        cols[0] = "Month"
+        cols[-1] = "Total"
+        df.columns = cols
     else:
         df.columns = [f"Col{i}" for i in range(ncols)]
         df.rename(columns={df.columns[0]: "Month"}, inplace=True)
