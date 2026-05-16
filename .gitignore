@@ -27,3 +27,6 @@ instance/
 # Excel temp files
 ~$*.xlsx
 ~$*.xls
+
+# Uploaded session files (runtime only)
+app/uploads/*/

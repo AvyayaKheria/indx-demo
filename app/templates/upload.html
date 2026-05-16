@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CFO Dashboard Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:      #0f2744;
+      --teal:      #0d9488;
+      --teal2:     #14b8a6;
+      --red:       #ef4444;
+      --green:     #10b981;
+      --slate-900: #0f172a;
+      --slate-700: #334155;
+      --slate-600: #475569;
+      --slate-500: #64748b;
+      --slate-400: #94a3b8;
+      --slate-200: #e2e8f0;
+      --slate-100: #f1f5f9;
+      --slate-50:  #f8fafc;
+      --white:     #ffffff;
+      --shadow-sm: 0 1px 4px rgba(0,0,0,.07), 0 1px 2px rgba(0,0,0,.04);
+      --shadow-md: 0 4px 20px rgba(0,0,0,.10), 0 2px 6px rgba(0,0,0,.05);
+      --radius:    10px;
+      --radius-sm: 6px;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--slate-50);
+      color: var(--slate-900);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 16px 60px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Logo mark ──────────────────────────────────────────────────────── */
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 36px;
+    }
+    .brand-logo {
+      width: 40px;
+      height: 40px;
+      background: var(--navy);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 700;
+      color: white;
+      letter-spacing: -.01em;
+      flex-shrink: 0;
+    }
+    .brand-text { line-height: 1.25; }
+    .brand-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--slate-900);
+    }
+    .brand-sub {
+      font-size: 12px;
+      color: var(--slate-400);
+    }
+
+    /* ── Card ────────────────────────────────────────────────────────────── */
+    .card {
+      background: var(--white);
+      border: 1px solid var(--slate-200);
+      border-radius: 16px;
+      box-shadow: var(--shadow-md);
+      width: 100%;
+      max-width: 580px;
+      overflow: hidden;
+    }
+
+    .card-header {
+      background: var(--navy);
+      padding: 32px 36px 28px;
+    }
+    .card-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: white;
+      letter-spacing: -.02em;
+      margin-bottom: 6px;
+    }
+    .card-subtitle {
+      font-size: 13.5px;
+      color: rgba(255,255,255,.65);
+      font-weight: 400;
+      line-height: 1.5;
+    }
+
+    .card-body {
+      padding: 28px 36px 32px;
+    }
+
+    /* ── Error banner ────────────────────────────────────────────────────── */
+    .error-banner {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: var(--radius-sm);
+      padding: 14px 16px;
+      margin-bottom: 24px;
+    }
+    .error-banner-title {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      color: #991b1b;
+      margin-bottom: 8px;
+    }
+    .error-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .error-list li {
+      font-size: 13px;
+      color: #b91c1c;
+      padding-left: 16px;
+      position: relative;
+    }
+    .error-list li::before {
+      content: "×";
+      position: absolute;
+      left: 0;
+      font-weight: 700;
+    }
+
+    /* ── File slots ──────────────────────────────────────────────────────── */
+    .slots-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      color: var(--slate-400);
+      margin-bottom: 12px;
+    }
+
+    .slots {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 28px;
+    }
+
+    .slot {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      align-items: center;
+      gap: 12px;
+      background: var(--slate-50);
+      border: 1px solid var(--slate-200);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      transition: border-color .15s, background .15s;
+    }
+    .slot:focus-within {
+      border-color: var(--teal);
+      background: #f0fdfa;
+    }
+    .slot.has-file {
+      border-color: #a7f3d0;
+      background: #f0fdf4;
+    }
+
+    .slot-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--slate-700);
+      line-height: 1.3;
+    }
+    .slot-ext {
+      font-size: 11px;
+      color: var(--slate-400);
+      font-weight: 400;
+    }
+
+    .slot-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .file-btn {
+      flex-shrink: 0;
+      padding: 6px 14px;
+      background: var(--white);
+      border: 1px solid var(--slate-200);
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--slate-700);
+      cursor: pointer;
+      font-family: inherit;
+      transition: border-color .15s, color .15s;
+      white-space: nowrap;
+    }
+    .file-btn:hover {
+      border-color: var(--teal);
+      color: var(--teal);
+    }
+
+    /* hide the real input */
+    .slot input[type="file"] {
+      position: absolute;
+      width: 1px; height: 1px;
+      opacity: 0; overflow: hidden;
+    }
+
+    .slot-filename {
+      font-size: 12px;
+      color: var(--slate-400);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+    .slot-filename.chosen {
+      color: var(--green);
+      font-weight: 500;
+    }
+    .slot-check {
+      font-size: 14px;
+      flex-shrink: 0;
+      display: none;
+    }
+    .slot.has-file .slot-check { display: block; }
+
+    /* ── Generate button ─────────────────────────────────────────────────── */
+    .generate-btn {
+      width: 100%;
+      padding: 14px;
+      background: var(--navy);
+      color: white;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: -.01em;
+      transition: background .15s, transform .1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .generate-btn:hover { background: #0c1f38; }
+    .generate-btn:active { transform: scale(.99); }
+    .generate-btn.loading {
+      background: var(--slate-500);
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+    .generate-btn .btn-arrow { font-size: 17px; }
+    .generate-btn .btn-spinner {
+      display: none;
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,.4);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    .generate-btn.loading .btn-spinner { display: block; }
+    .generate-btn.loading .btn-arrow  { display: none; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Demo link ───────────────────────────────────────────────────────── */
+    .demo-row {
+      margin-top: 20px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--slate-400);
+    }
+    .demo-row a {
+      color: var(--teal);
+      font-weight: 500;
+      text-decoration: none;
+    }
+    .demo-row a:hover { text-decoration: underline; }
+
+    /* ── Footer note ─────────────────────────────────────────────────────── */
+    .upload-note {
+      margin-top: 28px;
+      font-size: 12px;
+      color: var(--slate-400);
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 480px) {
+      .card-header { padding: 24px 20px 20px; }
+      .card-body   { padding: 20px 20px 24px; }
+      .slot { grid-template-columns: 1fr; gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="brand">
+    <div class="brand-logo">G</div>
+    <div class="brand-text">
+      <div class="brand-name">Grain &amp; Co.</div>
+      <div class="brand-sub">Financial Intelligence</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">CFO Dashboard Generator</div>
+      <div class="card-subtitle">Upload your financial files and get a live, interactive dashboard instantly.</div>
+    </div>
+
+    <div class="card-body">
+
+      {% if errors %}
+      <div class="error-banner">
+        <div class="error-banner-title">Please fix the following</div>
+        <ul class="error-list">
+          {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <div class="slots-label">Required files — all five must be .xlsx</div>
+
+      <form id="upload-form" method="POST" action="/upload" enctype="multipart/form-data">
+        <div class="slots">
+          {% for key, filename, label, ncols, col_hint in slots %}
+          <div class="slot" id="slot-{{ key }}">
+            <div class="slot-label">
+              {{ label }}<br>
+              <span class="slot-ext">(.xlsx) · {{ col_hint }}</span>
+            </div>
+            <div class="slot-right">
+              <label class="file-btn" for="file-{{ key }}">Choose file</label>
+              <input type="file" id="file-{{ key }}" name="{{ key }}" accept=".xlsx" />
+              <span class="slot-filename" id="name-{{ key }}">No file chosen</span>
+              <span class="slot-check">✓</span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <button type="submit" class="generate-btn" id="gen-btn">
+          <span>Generate Dashboard</span>
+          <span class="btn-arrow">→</span>
+          <span class="btn-spinner"></span>
+        </button>
+      </form>
+
+      <div class="demo-row">
+        or &nbsp;<a href="/dashboard/demo">try with sample data →</a>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="upload-note">
+    Files are processed in-memory and not stored permanently.<br>
+    Supported format: Microsoft Excel (.xlsx)
+  </div>
+
+<script>
+  // ── Per-slot file label update ────────────────────────────────────────────
+  {% for key, filename, label, ncols, col_hint in slots %}
+  document.getElementById('file-{{ key }}').addEventListener('change', function() {
+    const slot = document.getElementById('slot-{{ key }}');
+    const nameEl = document.getElementById('name-{{ key }}');
+    if (this.files.length > 0) {
+      nameEl.textContent = this.files[0].name;
+      nameEl.classList.add('chosen');
+      slot.classList.add('has-file');
+    } else {
+      nameEl.textContent = 'No file chosen';
+      nameEl.classList.remove('chosen');
+      slot.classList.remove('has-file');
+    }
+  });
+  {% endfor %}
+
+  // ── Loading state on submit ───────────────────────────────────────────────
+  document.getElementById('upload-form').addEventListener('submit', function() {
+    const btn = document.getElementById('gen-btn');
+    btn.classList.add('loading');
+    btn.querySelector('span:first-child').textContent = 'Generating…';
+  });
+</script>
+
+</body>
+</html>

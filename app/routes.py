@@ -1,11 +1,33 @@
 import json
+import uuid
+import shutil
 import plotly
 import plotly.graph_objects as go
-from flask import Blueprint, render_template
+import pandas as pd
+from pathlib import Path
+from flask import Blueprint, render_template, request, redirect, url_for, jsonify
 
 from .loader import load_balance_sheet, load_costs, load_pl, load_revenue, load_trial_balance
 
 main = Blueprint("main", __name__)
+
+# ── Upload storage ────────────────────────────────────────────────────────────
+UPLOAD_DIR = Path(__file__).parent / "uploads"
+UPLOAD_DIR.mkdir(exist_ok=True)
+
+# (key, saved_filename, display_label, expected_ncols, col_hint)
+FILE_SLOTS = [
+    ("revenue",       "revenue.xlsx",       "Revenue Sheet",    5,
+     "Month, Dine-In, Delivery, Catering, Total"),
+    ("costs",         "costs.xlsx",         "Cost Sheet",       6,
+     "Month, COGS, Payroll, Rent, Marketing, Total"),
+    ("pl",            "pl.xlsx",            "P&L Statement",    3,
+     "Item, Amount, %"),
+    ("balance_sheet", "balance_sheet.xlsx", "Balance Sheet",    2,
+     "Item, Amount"),
+    ("trial_balance", "trial_balance.xlsx", "Trial Balance",    3,
+     "Account, Debit, Credit"),
+]
 
 # ── Design tokens ─────────────────────────────────────────────────────────────
 NAVY   = "#0f2744"
@@ -68,7 +90,6 @@ def _json(fig: go.Figure) -> str:
 
 
 def _donut(labels, values, colors, title, centre_top, centre_sub):
-    """Build a clean donut figure with no slice labels and a centre annotation."""
     fig = go.Figure(go.Pie(
         labels=labels, values=values,
         hole=0.54,
@@ -95,13 +116,35 @@ def _donut(labels, values, colors, title, centre_top, centre_sub):
     return fig
 
 
-@main.route("/")
-def dashboard():
-    rev_df  = load_revenue()
-    cost_df = load_costs()
-    pl      = load_pl()
-    bs      = load_balance_sheet()
-    load_trial_balance()         # kept for data integrity; unused in charts
+# ── Validation ────────────────────────────────────────────────────────────────
+def _validate_xlsx(path: Path, ncols_expected: int, label: str, col_hint: str):
+    """Returns an error string, or None if the file looks OK."""
+    try:
+        df = pd.read_excel(path, header=1, nrows=3)
+    except Exception as e:
+        return f"{label}: could not read file — {e}"
+    if len(df.columns) < ncols_expected:
+        return (
+            f"{label} should have columns: {col_hint} "
+            f"(found {len(df.columns)} column{'s' if len(df.columns) != 1 else ''})"
+        )
+    return None
+
+
+# ── Core dashboard builder ────────────────────────────────────────────────────
+def _build_dashboard_data(data_dir=None):
+    """
+    Load data from `data_dir` (or the hardcoded data folder when None) and
+    build every KPI / chart needed by the dashboard template.
+
+    Returns (kpis dict, charts dict, cost_legend list).
+    Raises on unrecoverable data error.
+    """
+    rev_df  = load_revenue(data_dir)
+    cost_df = load_costs(data_dir)
+    pl      = load_pl(data_dir)
+    bs      = load_balance_sheet(data_dir)
+    load_trial_balance(data_dir)   # kept for data integrity; unused in charts
 
     # ── Reconcile monthly revenue to P&L total ────────────────────────────────
     pl_revenue = pl.get("Total Revenue", 0)
@@ -193,7 +236,7 @@ def dashboard():
         )
     fig_rvc.update_layout(**_layout("Revenue vs Costs vs Operating Profit", y_title="Amount ($)"))
 
-    # ── Chart 3: Cost Mix donut (no slice labels — custom HTML legend) ─────────
+    # ── Chart 3: Cost Mix donut ───────────────────────────────────────────────
     cost_labels = ["F&B / COGS", "Payroll", "Rent & Utilities", "Marketing"]
     cost_colors = [NAVY, TEAL, TEAL2, TEAL3]
     cost_vals   = [int(cost_df[c].sum()) for c in ["COGS", "Payroll", "Rent", "Marketing"]]
@@ -303,5 +346,80 @@ def dashboard():
         capital=_json(fig_capital),
     )
 
+    return kpis, charts, cost_legend
+
+
+# ── Routes ────────────────────────────────────────────────────────────────────
+
+@main.route("/")
+def index():
+    return render_template("upload.html", slots=FILE_SLOTS)
+
+
+@main.route("/upload", methods=["POST"])
+def upload():
+    session_id  = str(uuid.uuid4())[:8]
+    session_dir = UPLOAD_DIR / session_id
+    session_dir.mkdir(parents=True, exist_ok=True)
+
+    errors = []
+
+    for key, filename, label, ncols, col_hint in FILE_SLOTS:
+        f = request.files.get(key)
+        if not f or not f.filename:
+            errors.append(f"Missing: {label}")
+            continue
+        if not f.filename.lower().endswith(".xlsx"):
+            errors.append(f"{label} must be an .xlsx file")
+            continue
+        dest = session_dir / filename
+        f.save(dest)
+        err = _validate_xlsx(dest, ncols, label, col_hint)
+        if err:
+            errors.append(err)
+
+    if errors:
+        shutil.rmtree(session_dir, ignore_errors=True)
+        return render_template("upload.html", slots=FILE_SLOTS, errors=errors)
+
+    return redirect(url_for("main.dashboard", session_id=session_id))
+
+
+@main.route("/dashboard/<session_id>")
+def dashboard(session_id):
+    if session_id == "demo":
+        data_dir = None
+    else:
+        session_dir = UPLOAD_DIR / session_id
+        if not session_dir.exists():
+            return redirect(url_for("main.index"))
+        data_dir = session_dir
+
+    try:
+        kpis, charts, cost_legend = _build_dashboard_data(data_dir)
+    except Exception as e:
+        return render_template("upload.html", slots=FILE_SLOTS,
+                               errors=[f"Could not generate dashboard: {e}"])
+
     return render_template("dashboard.html", kpis=kpis, charts=charts,
-                           cost_legend=cost_legend)
+                           cost_legend=cost_legend, session_id=session_id)
+
+
+@main.route("/api/refresh/<session_id>")
+def refresh(session_id):
+    if session_id == "demo":
+        data_dir = None
+    else:
+        session_dir = UPLOAD_DIR / session_id
+        if not session_dir.exists():
+            return jsonify({"error": "Session not found — please re-upload your files."}), 404
+        data_dir = session_dir
+
+    try:
+        kpis, charts, cost_legend = _build_dashboard_data(data_dir)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    # charts values are JSON strings — parse so jsonify re-serialises cleanly
+    charts_obj = {k: json.loads(v) for k, v in charts.items()}
+    return jsonify({"kpis": kpis, "charts": charts_obj, "cost_legend": cost_legend})
