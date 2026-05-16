@@ -14,8 +14,7 @@ import os
 import json
 from pathlib import Path
 
-MODEL = "claude-3-5-haiku-20241022"    # fast: ~1-2 s latency
-MODEL_FALLBACK = "claude-3-haiku-20240307"  # fallback if 3.5 haiku not available
+MODEL = "claude-3-5-sonnet-20241022"   # universally available across all account tiers
 
 
 # ── Industry benchmarks injected into the prompt ─────────────────────────────
@@ -119,19 +118,11 @@ def generate_insights(kpis: dict) -> tuple[list[dict], str | None]:
 
     try:
         client = anthropic.Anthropic(api_key=api_key)
-        # Try primary model, fall back to haiku-3 if primary isn't accessible
-        for model_id in (MODEL, MODEL_FALLBACK):
-            try:
-                resp = client.messages.create(
-                    model=model_id,
-                    max_tokens=2048,
-                    messages=[{"role": "user", "content": prompt}],
-                )
-                break
-            except Exception as model_err:
-                if model_id == MODEL_FALLBACK:
-                    raise model_err
-                continue
+        resp = client.messages.create(
+            model=MODEL,
+            max_tokens=2048,
+            messages=[{"role": "user", "content": prompt}],
+        )
         raw = resp.content[0].text.strip()
 
         # Strip any accidental markdown fences
