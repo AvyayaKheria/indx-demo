@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Confirm Extracted Data — CFO Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:      #0f2744;
+      --teal:      #0d9488;
+      --teal2:     #14b8a6;
+      --red:       #ef4444;
+      --green:     #10b981;
+      --slate-900: #0f172a;
+      --slate-700: #334155;
+      --slate-600: #475569;
+      --slate-500: #64748b;
+      --slate-400: #94a3b8;
+      --slate-200: #e2e8f0;
+      --slate-100: #f1f5f9;
+      --slate-50:  #f8fafc;
+      --white:     #ffffff;
+      --shadow-sm: 0 1px 4px rgba(0,0,0,.07), 0 1px 2px rgba(0,0,0,.04);
+      --shadow-md: 0 4px 20px rgba(0,0,0,.10), 0 2px 6px rgba(0,0,0,.05);
+      --radius:    10px;
+      --radius-sm: 6px;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--slate-50);
+      color: var(--slate-900);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 16px 60px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    .brand-logo {
+      width: 40px; height: 40px;
+      background: var(--navy);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; font-weight: 700; color: white;
+      letter-spacing: -.01em;
+    }
+    .brand-text { line-height: 1.25; }
+    .brand-name { font-size: 15px; font-weight: 600; color: var(--slate-900); }
+    .brand-sub  { font-size: 12px; color: var(--slate-400); }
+
+    /* ── Card ─────────────────────────────────────────────────────────── */
+    .card {
+      background: var(--white);
+      border: 1px solid var(--slate-200);
+      border-radius: 16px;
+      box-shadow: var(--shadow-md);
+      width: 100%;
+      max-width: 640px;
+      overflow: hidden;
+    }
+
+    /* ── Success banner ───────────────────────────────────────────────── */
+    .success-banner {
+      background: linear-gradient(135deg, #064e3b 0%, var(--teal) 100%);
+      padding: 28px 36px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .success-icon {
+      width: 44px; height: 44px;
+      background: rgba(255,255,255,.15);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .success-text {}
+    .success-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: white;
+      letter-spacing: -.01em;
+      margin-bottom: 3px;
+    }
+    .success-sub {
+      font-size: 13px;
+      color: rgba(255,255,255,.75);
+    }
+
+    /* ── Body ─────────────────────────────────────────────────────────── */
+    .card-body { padding: 28px 36px 32px; }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      color: var(--slate-400);
+      margin-bottom: 14px;
+    }
+
+    /* ── Figures grid ─────────────────────────────────────────────────── */
+    .figures-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+    .figure-card {
+      background: var(--slate-50);
+      border: 1px solid var(--slate-200);
+      border-radius: var(--radius-sm);
+      padding: 14px 16px;
+    }
+    .figure-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      color: var(--slate-400);
+      margin-bottom: 4px;
+    }
+    .figure-value {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -.02em;
+      color: var(--navy);
+    }
+    .figure-value.neg { color: var(--red); }
+    .figure-value.pos { color: var(--green); }
+    .figure-value.nil { color: var(--slate-400); font-weight: 400; font-size: 16px; }
+
+    /* ── Detection info ───────────────────────────────────────────────── */
+    .detection-row {
+      background: #f0fdfa;
+      border: 1px solid #a7f3d0;
+      border-radius: var(--radius-sm);
+      padding: 14px 16px;
+      margin-bottom: 28px;
+    }
+    .detection-row-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #065f46;
+      margin-bottom: 10px;
+    }
+    .detection-items {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .detection-item {
+      display: flex;
+      gap: 8px;
+      font-size: 12.5px;
+      color: var(--slate-600);
+    }
+    .detection-key {
+      font-weight: 600;
+      color: #065f46;
+      width: 130px;
+      flex-shrink: 0;
+    }
+    .detection-val { color: var(--slate-700); }
+    .tag {
+      display: inline-block;
+      background: #d1fae5;
+      color: #065f46;
+      border-radius: 4px;
+      padding: 1px 7px;
+      font-size: 11.5px;
+      font-weight: 500;
+      margin: 1px 2px;
+    }
+
+    /* ── Question ─────────────────────────────────────────────────────── */
+    .question {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--slate-900);
+      margin-bottom: 16px;
+    }
+
+    /* ── Buttons ──────────────────────────────────────────────────────── */
+    .btn-row {
+      display: flex;
+      gap: 12px;
+    }
+    .btn-confirm {
+      flex: 1;
+      padding: 13px 20px;
+      background: var(--navy);
+      color: white;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      letter-spacing: -.01em;
+      transition: background .15s;
+      text-decoration: none;
+    }
+    .btn-confirm:hover { background: #0c1f38; }
+
+    .btn-reupload {
+      padding: 13px 20px;
+      background: var(--white);
+      color: var(--slate-600);
+      border: 1px solid var(--slate-200);
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: border-color .15s, color .15s;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-reupload:hover {
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    @media (max-width: 480px) {
+      .figures-grid { grid-template-columns: 1fr; }
+      .card-body    { padding: 20px; }
+      .success-banner { padding: 20px; }
+      .btn-row { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="brand">
+    <div class="brand-logo">G</div>
+    <div class="brand-text">
+      <div class="brand-name">Grain &amp; Co.</div>
+      <div class="brand-sub">Financial Intelligence</div>
+    </div>
+  </div>
+
+  <div class="card">
+
+    <!-- Success banner -->
+    <div class="success-banner">
+      <div class="success-icon">✓</div>
+      <div class="success-text">
+        <div class="success-title">Data extracted successfully</div>
+        <div class="success-sub">AI read all 5 files — review the figures below before proceeding</div>
+      </div>
+    </div>
+
+    <div class="card-body">
+
+      <!-- Key figures -->
+      <div class="section-label">Key figures we found</div>
+      <div class="figures-grid">
+
+        {% macro figval(v, always_sign=false) %}
+          {% if v is none %}
+            <span class="figure-value nil">—</span>
+          {% elif v < 0 %}
+            <span class="figure-value neg">-${{ "{:,.0f}".format(v | abs) }}</span>
+          {% else %}
+            <span class="figure-value">${{ "{:,.0f}".format(v) }}</span>
+          {% endif %}
+        {% endmacro %}
+
+        <div class="figure-card">
+          <div class="figure-label">Total Revenue</div>
+          {{ figval(summary.total_revenue) }}
+        </div>
+        <div class="figure-card">
+          <div class="figure-label">Gross Profit</div>
+          {{ figval(summary.gross_profit) }}
+        </div>
+        <div class="figure-card">
+          <div class="figure-label">EBITDA</div>
+          {{ figval(summary.ebitda) }}
+        </div>
+        <div class="figure-card">
+          <div class="figure-label">Net Profit After Tax</div>
+          {{ figval(summary.net_profit) }}
+        </div>
+        <div class="figure-card">
+          <div class="figure-label">Total Assets</div>
+          {{ figval(summary.total_assets) }}
+        </div>
+        <div class="figure-card">
+          <div class="figure-label">Total Equity</div>
+          {{ figval(summary.total_equity) }}
+        </div>
+
+      </div>
+
+      <!-- Detection details -->
+      <div class="detection-row">
+        <div class="detection-row-title">What was detected in your files</div>
+        <div class="detection-items">
+          <div class="detection-item">
+            <span class="detection-key">Monthly periods</span>
+            <span class="detection-val">{{ summary.monthly_rows }} month{{ 's' if summary.monthly_rows != 1 else '' }} found</span>
+          </div>
+          <div class="detection-item">
+            <span class="detection-key">Revenue channels</span>
+            <span class="detection-val">
+              {% for ch in summary.revenue_channels %}
+                <span class="tag">{{ ch }}</span>
+              {% else %}
+                <em style="color:var(--slate-400)">none detected</em>
+              {% endfor %}
+            </span>
+          </div>
+          <div class="detection-item">
+            <span class="detection-key">Cost categories</span>
+            <span class="detection-val">
+              {% for cat in summary.cost_categories %}
+                <span class="tag">{{ cat }}</span>
+              {% else %}
+                <em style="color:var(--slate-400)">none detected</em>
+              {% endfor %}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Question + actions -->
+      <div class="question">Does this look correct?</div>
+
+      <div class="btn-row">
+        <a href="/dashboard/{{ session_id }}" class="btn-confirm">
+          ✓ &nbsp;Confirm — View Dashboard
+        </a>
+        <a href="/" class="btn-reupload">
+          ↩ Re-upload files
+        </a>
+      </div>
+
+    </div>
+  </div>
+
+</body>
+</html>

@@ -1,4 +1,5 @@
 import json
+import os
 import uuid
 import shutil
 import plotly
@@ -7,7 +8,12 @@ import pandas as pd
 from pathlib import Path
 from flask import Blueprint, render_template, request, redirect, url_for, jsonify
 
-from .loader import load_balance_sheet, load_costs, load_pl, load_revenue, load_trial_balance
+from .loader import (
+    load_balance_sheet, load_costs, load_pl, load_revenue, load_trial_balance,
+    load_revenue_json, load_costs_json, load_pl_json,
+    load_balance_sheet_json, load_trial_balance_json,
+)
+from .extractor import extract_all, ExtractionError
 
 main = Blueprint("main", __name__)
 
@@ -15,7 +21,7 @@ main = Blueprint("main", __name__)
 UPLOAD_DIR = Path(__file__).parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
 
-# (key, saved_filename, display_label, expected_ncols, col_hint)
+# (form field key, saved filename, display label, expected min columns, col hint)
 FILE_SLOTS = [
     ("revenue",       "revenue.xlsx",       "Revenue Sheet",    5,
      "Month, Dine-In, Delivery, Catering, Total"),
@@ -39,6 +45,9 @@ GREEN  = "#10b981"
 SLATE  = "#64748b"
 GRID   = "#f1f5f9"
 BORDER = "#e2e8f0"
+
+# Extended palette for dynamic channel/category colours
+PALETTE = [NAVY, TEAL, TEAL2, TEAL3, "#2563eb", "#7c3aed", "#db2777", "#f59e0b"]
 
 _FONT   = dict(family="Inter, system-ui, -apple-system, sans-serif", size=12, color="#475569")
 _HOVER  = dict(
@@ -116,9 +125,9 @@ def _donut(labels, values, colors, title, centre_top, centre_sub):
     return fig
 
 
-# ── Validation ────────────────────────────────────────────────────────────────
+# ── File validation (fallback — used when no AI key) ─────────────────────────
+
 def _validate_xlsx(path: Path, ncols_expected: int, label: str, col_hint: str):
-    """Returns an error string, or None if the file looks OK."""
     try:
         df = pd.read_excel(path, header=1, nrows=3)
     except Exception as e:
@@ -131,47 +140,71 @@ def _validate_xlsx(path: Path, ncols_expected: int, label: str, col_hint: str):
     return None
 
 
+# ── JSON vs raw-Excel detection ───────────────────────────────────────────────
+
+def _has_extracted_json(data_dir) -> bool:
+    """True when all AI-extracted JSON files exist in data_dir."""
+    if not data_dir:
+        return False
+    p = Path(data_dir)
+    return all(
+        (p / f).exists() for f in [
+            "revenue_extracted.json", "costs_extracted.json",
+            "pl_extracted.json",      "balance_sheet_extracted.json",
+        ]
+    )
+
+
 # ── Core dashboard builder ────────────────────────────────────────────────────
+
 def _build_dashboard_data(data_dir=None):
     """
-    Load data from `data_dir` (or the hardcoded data folder when None) and
-    build every KPI / chart needed by the dashboard template.
-
+    Load data and build all KPIs and charts.
+    Uses AI-extracted JSON when available; falls back to raw Excel loaders.
     Returns (kpis dict, charts dict, cost_legend list).
-    Raises on unrecoverable data error.
     """
-    rev_df  = load_revenue(data_dir)
-    cost_df = load_costs(data_dir)
-    pl      = load_pl(data_dir)
-    bs      = load_balance_sheet(data_dir)
-    load_trial_balance(data_dir)   # kept for data integrity; unused in charts
+    if _has_extracted_json(data_dir):
+        rev_df  = load_revenue_json(data_dir)
+        cost_df = load_costs_json(data_dir)
+        pl      = load_pl_json(data_dir)
+        bs      = load_balance_sheet_json(data_dir)
+    else:
+        rev_df  = load_revenue(data_dir)
+        cost_df = load_costs(data_dir)
+        pl      = load_pl(data_dir)
+        bs      = load_balance_sheet(data_dir)
+        load_trial_balance(data_dir)  # data integrity check
 
     # ── Reconcile monthly revenue to P&L total ────────────────────────────────
-    pl_revenue = pl.get("Total Revenue", 0)
+    pl_revenue = pl.get("Total Revenue") or 0
     raw_total  = rev_df["Total"].sum()
     if raw_total > 0 and pl_revenue > 0:
         scale = pl_revenue / raw_total
-        for col in ["Dine_In", "Delivery", "Catering", "Total"]:
+        for col in [c for c in rev_df.columns if c != "Month"]:
             rev_df[col] = (rev_df[col] * scale).round(0).astype(int)
 
-    # ── KPIs ──────────────────────────────────────────────────────────────────
-    total_revenue       = pl.get("Total Revenue", 0)
-    gross_profit        = pl.get("Gross Profit", 0)
-    ebitda              = pl.get("EBITDA", 0)
-    net_profit          = pl.get("Net Profit After Tax", 0)
-    total_assets        = bs.get("TOTAL ASSETS", 0)
-    total_equity        = bs.get("Total Equity", 0)
-    current_assets      = bs.get("Total Current Assets", 0)
-    current_liabilities = bs.get("Total Current Liabilities", 0)
-    non_current_liab    = bs.get("Total Non-Current Liabilities", 0)
-    total_liabilities   = current_liabilities + non_current_liab
-    non_current_assets  = bs.get("Total Non-Current Assets", 0)
+    # ── Dynamic column detection ──────────────────────────────────────────────
+    channel_cols  = [c for c in rev_df.columns  if c not in ("Month", "Total")]
+    cost_cat_cols = [c for c in cost_df.columns if c not in ("Month", "Total")]
 
-    gross_margin   = round(gross_profit  / total_revenue * 100, 1) if total_revenue else 0
-    net_margin     = round(net_profit    / total_revenue * 100, 1) if total_revenue else 0
-    ebitda_margin  = round(ebitda        / total_revenue * 100, 1) if total_revenue else 0
+    # ── KPIs ──────────────────────────────────────────────────────────────────
+    total_revenue       = pl.get("Total Revenue",              0) or 0
+    gross_profit        = pl.get("Gross Profit",               0) or 0
+    ebitda              = pl.get("EBITDA",                     0) or 0
+    net_profit          = pl.get("Net Profit After Tax",       0) or 0
+    total_assets        = bs.get("TOTAL ASSETS",               0) or 0
+    total_equity        = bs.get("Total Equity",               0) or 0
+    current_assets      = bs.get("Total Current Assets",       0) or 0
+    current_liabilities = bs.get("Total Current Liabilities",  0) or 0
+    non_current_liab    = bs.get("Total Non-Current Liabilities", 0) or 0
+    non_current_assets  = bs.get("Total Non-Current Assets",   0) or 0
+    total_liabilities   = current_liabilities + non_current_liab
+
+    gross_margin   = round(gross_profit / total_revenue * 100, 1) if total_revenue else 0
+    net_margin     = round(net_profit   / total_revenue * 100, 1) if total_revenue else 0
+    ebitda_margin  = round(ebitda       / total_revenue * 100, 1) if total_revenue else 0
     current_ratio  = round(current_assets / current_liabilities, 2) if current_liabilities else 0
-    debt_to_equity = round(total_liabilities / total_equity, 2) if total_equity else 0
+    debt_to_equity = round(total_liabilities / total_equity, 2)    if total_equity         else 0
 
     kpis = dict(
         total_revenue=total_revenue, gross_profit=gross_profit, gross_margin=gross_margin,
@@ -183,17 +216,14 @@ def _build_dashboard_data(data_dir=None):
 
     months = rev_df["Month"].tolist()
 
-    # ── Chart 1: Revenue by channel ───────────────────────────────────────────
+    # ── Chart 1: Revenue by channel (dynamic) ─────────────────────────────────
     fig_rev = go.Figure()
-    for col, color, label in [
-        ("Dine_In",  NAVY,  "Dine-In"),
-        ("Delivery", TEAL,  "Delivery"),
-        ("Catering", TEAL2, "Catering"),
-    ]:
+    for i, col in enumerate(channel_cols):
+        color = PALETTE[i % len(PALETTE)]
         fig_rev.add_trace(go.Bar(
-            name=label, x=months, y=rev_df[col].tolist(),
+            name=col, x=months, y=rev_df[col].tolist(),
             marker_color=color, marker_line_width=0,
-            hovertemplate=f"<b>%{{x}}</b><br>{label}: $%{{y:,.0f}}<extra></extra>",
+            hovertemplate=f"<b>%{{x}}</b><br>{col}: $%{{y:,.0f}}<extra></extra>",
         ))
     for month, total in zip(months, rev_df["Total"].tolist()):
         fig_rev.add_annotation(
@@ -236,11 +266,11 @@ def _build_dashboard_data(data_dir=None):
         )
     fig_rvc.update_layout(**_layout("Revenue vs Costs vs Operating Profit", y_title="Amount ($)"))
 
-    # ── Chart 3: Cost Mix donut ───────────────────────────────────────────────
-    cost_labels = ["F&B / COGS", "Payroll", "Rent & Utilities", "Marketing"]
-    cost_colors = [NAVY, TEAL, TEAL2, TEAL3]
-    cost_vals   = [int(cost_df[c].sum()) for c in ["COGS", "Payroll", "Rent", "Marketing"]]
-    total_costs = sum(cost_vals)
+    # ── Chart 3: Cost Mix donut (dynamic) ─────────────────────────────────────
+    cost_labels = cost_cat_cols
+    cost_colors = [PALETTE[i % len(PALETTE)] for i in range(len(cost_cat_cols))]
+    cost_vals   = [int(cost_df[c].sum()) for c in cost_cat_cols]
+    total_costs = sum(cost_vals) or 1  # avoid div-by-zero
 
     fig_cost = go.Figure(go.Pie(
         labels=cost_labels, values=cost_vals,
@@ -251,14 +281,14 @@ def _build_dashboard_data(data_dir=None):
         sort=False, direction="clockwise",
     ))
     fig_cost.add_annotation(
-        text=f"<b>${total_costs/1e6:.2f}M</b><br>Total Costs",
+        text=f"<b>{_fmt(total_costs)}</b><br>Total Costs",
         x=0.5, y=0.5, showarrow=False,
         font=dict(size=14, color=NAVY), align="center",
     )
     fig_cost.update_layout(
         paper_bgcolor="white", plot_bgcolor="white",
         font=_FONT, hoverlabel=_HOVER,
-        title=dict(text="Cost Mix — FY2025", font=dict(size=13, color="#1e293b"),
+        title=dict(text="Cost Mix", font=dict(size=13, color="#1e293b"),
                    x=0, xanchor="left", pad=dict(l=8, t=4)),
         showlegend=False,
         margin=dict(l=24, r=24, t=48, b=16),
@@ -277,7 +307,7 @@ def _build_dashboard_data(data_dir=None):
         ("Non-Current Assets",      "Assets",               non_current_assets,  NAVY),
         ("Current Liabilities",     "Liabilities & Equity", current_liabilities, RED),
         ("Non-Current Liabilities", "Liabilities & Equity", non_current_liab,    "#b91c1c"),
-        ("Equity",                  "Liabilities & Equity", total_equity,         GREEN),
+        ("Equity",                  "Liabilities & Equity", total_equity,        GREEN),
     ]:
         fig_bs.add_trace(go.Bar(
             name=name, x=[cat], y=[val],
@@ -361,10 +391,10 @@ def upload():
     session_id  = str(uuid.uuid4())[:8]
     session_dir = UPLOAD_DIR / session_id
     session_dir.mkdir(parents=True, exist_ok=True)
-
     errors = []
 
-    for key, filename, label, ncols, col_hint in FILE_SLOTS:
+    # ── Step 1: Save all files ────────────────────────────────────────────────
+    for key, filename, label, _ncols, _hint in FILE_SLOTS:
         f = request.files.get(key)
         if not f or not f.filename:
             errors.append(f"Missing: {label}")
@@ -372,17 +402,46 @@ def upload():
         if not f.filename.lower().endswith(".xlsx"):
             errors.append(f"{label} must be an .xlsx file")
             continue
-        dest = session_dir / filename
-        f.save(dest)
-        err = _validate_xlsx(dest, ncols, label, col_hint)
-        if err:
-            errors.append(err)
+        f.save(session_dir / filename)
 
     if errors:
         shutil.rmtree(session_dir, ignore_errors=True)
         return render_template("upload.html", slots=FILE_SLOTS, errors=errors)
 
-    return redirect(url_for("main.dashboard", session_id=session_id))
+    # ── Step 2: AI extraction (if API key set) or direct column validation ────
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        try:
+            extract_all(session_dir)
+        except ExtractionError as e:
+            shutil.rmtree(session_dir, ignore_errors=True)
+            return render_template("upload.html", slots=FILE_SLOTS, errors=[str(e)])
+        return redirect(url_for("main.confirm", session_id=session_id))
+    else:
+        # Fallback: validate column counts then go straight to dashboard
+        col_errors = []
+        for key, filename, label, ncols, col_hint in FILE_SLOTS:
+            err = _validate_xlsx(session_dir / filename, ncols, label, col_hint)
+            if err:
+                col_errors.append(err)
+        if col_errors:
+            shutil.rmtree(session_dir, ignore_errors=True)
+            return render_template("upload.html", slots=FILE_SLOTS, errors=col_errors)
+        return redirect(url_for("main.dashboard", session_id=session_id))
+
+
+@main.route("/confirm/<session_id>")
+def confirm(session_id):
+    session_dir = UPLOAD_DIR / session_id
+    if not session_dir.exists():
+        return redirect(url_for("main.index"))
+
+    summary_path = session_dir / "extraction_summary.json"
+    if not summary_path.exists():
+        # No AI summary — skip straight to dashboard (shouldn't normally happen)
+        return redirect(url_for("main.dashboard", session_id=session_id))
+
+    summary = json.loads(summary_path.read_text())
+    return render_template("confirm.html", summary=summary, session_id=session_id)
 
 
 @main.route("/dashboard/<session_id>")
@@ -420,6 +479,5 @@ def refresh(session_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-    # charts values are JSON strings — parse so jsonify re-serialises cleanly
     charts_obj = {k: json.loads(v) for k, v in charts.items()}
     return jsonify({"kpis": kpis, "charts": charts_obj, "cost_legend": cost_legend})
