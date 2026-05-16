@@ -503,7 +503,7 @@ def api_insights(session_id):
 
     try:
         from .insights import get_insights
-        insights = get_insights(data_dir, kpis)
-        return jsonify({"insights": insights})
+        insights, err = get_insights(data_dir, kpis)
+        return jsonify({"insights": insights, "error": err})
     except Exception as e:
         return jsonify({"error": str(e), "insights": []}), 500

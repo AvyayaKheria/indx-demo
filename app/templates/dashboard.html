@@ -995,23 +995,25 @@
     fetch('/api/insights/' + SESSION_ID)
       .then(r => r.json())
       .then(data => {
-        if (data.error && (!data.insights || data.insights.length === 0)) {
-          grid.innerHTML = `<div class="insights-no-ai">
-            <strong>AI insights not configured.</strong><br>
-            Add an <code>ANTHROPIC_API_KEY</code> environment variable to enable
-            personalised CFO-level insights for every dashboard.
-          </div>`;
-          badge.classList.add('error');
-          label.textContent = 'Not configured';
-          return;
-        }
         const insights = data.insights || [];
         if (insights.length === 0) {
-          grid.innerHTML = `<div class="insights-no-ai">
-            <strong>No insights generated.</strong> Add <code>ANTHROPIC_API_KEY</code> to enable AI analysis.
-          </div>`;
+          const errMsg = data.error;
+          let html;
+          if (!errMsg || errMsg === 'no_key') {
+            html = `<div class="insights-no-ai">
+              <strong>AI insights not configured.</strong><br>
+              Add an <code>ANTHROPIC_API_KEY</code> environment variable on Render
+              to enable personalised CFO-level insights.
+            </div>`;
+          } else {
+            html = `<div class="insights-no-ai">
+              <strong>Insight generation failed.</strong><br>
+              <code style="font-size:11px;color:#64748b">${errMsg}</code>
+            </div>`;
+          }
+          grid.innerHTML = html;
           badge.classList.add('error');
-          label.textContent = 'Not configured';
+          label.textContent = errMsg === 'no_key' ? 'Not configured' : 'Error';
           return;
         }
         grid.innerHTML = insights.map(buildInsightCard).join('');

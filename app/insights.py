@@ -14,7 +14,8 @@ import os
 import json
 from pathlib import Path
 
-MODEL = "claude-3-5-haiku-20241022"   # fast: ~1-2 s latency
+MODEL = "claude-3-5-haiku-20241022"    # fast: ~1-2 s latency
+MODEL_FALLBACK = "claude-3-haiku-20240307"  # fallback if 3.5 haiku not available
 
 
 # ── Industry benchmarks injected into the prompt ─────────────────────────────
@@ -97,18 +98,19 @@ JSON schema (return exactly this structure):
 """
 
 
-def generate_insights(kpis: dict) -> list[dict]:
-    """Call Claude and return 6 insight dicts. Returns [] if no API key."""
+def generate_insights(kpis: dict) -> tuple[list[dict], str | None]:
+    """
+    Call Claude and return (insights, error_message).
+    insights is [] and error_message is set when something goes wrong.
+    """
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
-        return []
+        return [], "no_key"
 
     try:
         import anthropic
     except ImportError:
-        return []
-
-    client = anthropic.Anthropic(api_key=api_key)
+        return [], "anthropic package not installed"
 
     prompt = _PROMPT_TEMPLATE.format(
         kpi_block=_kpi_block(kpis),
@@ -116,11 +118,20 @@ def generate_insights(kpis: dict) -> list[dict]:
     )
 
     try:
-        resp = client.messages.create(
-            model=MODEL,
-            max_tokens=2048,
-            messages=[{"role": "user", "content": prompt}],
-        )
+        client = anthropic.Anthropic(api_key=api_key)
+        # Try primary model, fall back to haiku-3 if primary isn't accessible
+        for model_id in (MODEL, MODEL_FALLBACK):
+            try:
+                resp = client.messages.create(
+                    model=model_id,
+                    max_tokens=2048,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                break
+            except Exception as model_err:
+                if model_id == MODEL_FALLBACK:
+                    raise model_err
+                continue
         raw = resp.content[0].text.strip()
 
         # Strip any accidental markdown fences
@@ -134,7 +145,6 @@ def generate_insights(kpis: dict) -> list[dict]:
             raw = raw[start:]
 
         insights = json.loads(raw)
-        # Normalise — ensure required keys exist
         clean = []
         for item in insights:
             clean.append({
@@ -144,23 +154,23 @@ def generate_insights(kpis: dict) -> list[dict]:
                 "body":     item.get("body",     ""),
                 "action":   item.get("action",   ""),
             })
-        return clean
+        return clean, None
 
-    except Exception:
-        return []
+    except Exception as exc:
+        return [], str(exc)
 
 
-def get_insights(session_dir, kpis: dict) -> list[dict]:
-    """Return cached insights if available, otherwise generate and cache."""
+def get_insights(session_dir, kpis: dict) -> tuple[list[dict], str | None]:
+    """Return (insights, error). Uses cache when available."""
     cache_path = None if session_dir is None else Path(session_dir) / "insights.json"
 
     if cache_path and cache_path.exists():
         try:
-            return json.loads(cache_path.read_text())
+            return json.loads(cache_path.read_text()), None
         except Exception:
             pass
 
-    insights = generate_insights(kpis)
+    insights, err = generate_insights(kpis)
 
     if cache_path and insights:
         try:
@@ -168,4 +178,4 @@ def get_insights(session_dir, kpis: dict) -> list[dict]:
         except Exception:
             pass
 
-    return insights
+    return insights, err
