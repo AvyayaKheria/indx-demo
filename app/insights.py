@@ -14,16 +14,39 @@ import os
 import json
 from pathlib import Path
 
-# Model preference order — we'll pick the first one the account can access
+# Ranked preference — first match found in account's available models wins
 _MODEL_PREFERENCE = [
-    "claude-3-5-sonnet-20241022",
-    "claude-3-5-haiku-20241022",
-    "claude-3-7-sonnet-20250219",
-    "claude-sonnet-4-5",
-    "claude-3-opus-20240229",
-    "claude-3-sonnet-20240229",
-    "claude-3-haiku-20240307",
+    "claude-3-5-sonnet",
+    "claude-3-7-sonnet",
+    "claude-sonnet-4",
+    "claude-opus-4",
+    "claude-3-5-haiku",
+    "claude-3-opus",
+    "claude-3-haiku",
+    "claude-3-sonnet",
 ]
+
+_resolved_model: str | None = None  # cached after first successful lookup
+
+
+def _pick_model(client) -> str:
+    """One fast models.list() call to find what this account can actually use."""
+    global _resolved_model
+    if _resolved_model:
+        return _resolved_model
+    try:
+        available = [m.id for m in client.models.list().data]
+        for pref in _MODEL_PREFERENCE:
+            for m_id in available:
+                if pref in m_id.lower():
+                    _resolved_model = m_id
+                    return m_id
+        if available:
+            _resolved_model = available[0]
+            return _resolved_model
+    except Exception:
+        pass
+    return "claude-3-5-sonnet-20241022"  # best-guess fallback
 
 
 # ── Industry benchmarks injected into the prompt ─────────────────────────────
@@ -126,26 +149,13 @@ def generate_insights(kpis: dict) -> tuple[list[dict], str | None]:
     )
 
     try:
-        client = anthropic.Anthropic(api_key=api_key)
-
-        # Auto-detect the first model this account can actually use
-        resp = None
-        last_err = None
-        for model_id in _MODEL_PREFERENCE:
-            try:
-                resp = client.messages.create(
-                    model=model_id,
-                    max_tokens=2048,
-                    messages=[{"role": "user", "content": prompt}],
-                )
-                break  # success
-            except Exception as e:
-                last_err = e
-                # Only continue on 404 (model not found); bail on auth/billing errors
-                if "not_found" not in str(e).lower():
-                    raise e
-        if resp is None:
-            raise last_err
+        client   = anthropic.Anthropic(api_key=api_key)
+        model_id = _pick_model(client)   # one fast list call, cached after first use
+        resp = client.messages.create(
+            model=model_id,
+            max_tokens=2048,
+            messages=[{"role": "user", "content": prompt}],
+        )
         raw = resp.content[0].text.strip()
 
         # Strip any accidental markdown fences
