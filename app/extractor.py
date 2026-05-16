@@ -13,11 +13,10 @@ Usage:
 import os
 import json
 import openpyxl
-import anthropic
 from pathlib import Path
 
-MODEL = "claude-sonnet-4-20250514"
-MAX_CHARS = 14_000   # ~3 500 tokens — plenty for financial tables
+MODEL = "claude-sonnet-4-5"      # latest Claude Sonnet 4
+MAX_CHARS = 14_000                # ~3 500 tokens — plenty for financial tables
 
 
 # ── Custom exception ──────────────────────────────────────────────────────────
@@ -29,12 +28,20 @@ class ExtractionError(ValueError):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _client() -> anthropic.Anthropic:
+def _client():
+    """Return an Anthropic client; raises ExtractionError if key is missing or package absent."""
     key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not key:
         raise ExtractionError(
             "ANTHROPIC_API_KEY is not configured. "
             "Add it as an environment variable to enable AI-powered extraction."
+        )
+    try:
+        import anthropic  # lazy import — app works fine without the package
+    except ImportError:
+        raise ExtractionError(
+            "The 'anthropic' package is not installed. "
+            "Add anthropic>=0.40.0 to requirements.txt to enable AI extraction."
         )
     return anthropic.Anthropic(api_key=key)
 

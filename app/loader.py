@@ -11,26 +11,60 @@ def _resolve(data_dir, session_name, default_name) -> Path:
     return DATA_DIR / default_name
 
 
+def _force_columns(df: pd.DataFrame, names: list) -> pd.DataFrame:
+    """
+    Rename df columns to `names`.  If the column counts differ, truncate or
+    pad with generic names so we never raise a length-mismatch error.
+    """
+    n = len(df.columns)
+    if n == len(names):
+        df.columns = names
+    elif n < len(names):
+        df.columns = names[:n]
+    else:
+        # More columns than expected — keep expected names + label extras generically
+        extra = [f"Col{i}" for i in range(len(names), n)]
+        df.columns = names + extra
+    return df
+
+
 def load_revenue(data_dir=None) -> pd.DataFrame:
     path = _resolve(data_dir, "revenue.xlsx", "GrainCo_Revenue_FY2025.xlsx")
     df = pd.read_excel(path, header=1)
-    df.columns = ["Month", "Dine_In", "Delivery", "Catering", "Total"]
-    df = df[df["Month"] != "TOTAL"].dropna(subset=["Month"])
+    ncols = len(df.columns)
+    if ncols >= 3:
+        # First col = Month, last col = Total, middle cols = channels
+        channel_names = [f"Channel{i+1}" for i in range(ncols - 2)]
+        _force_columns(df, ["Month"] + channel_names + ["Total"])
+    else:
+        df.columns = [f"Col{i}" for i in range(ncols)]
+        df.rename(columns={df.columns[0]: "Month"}, inplace=True)
+        if "Total" not in df.columns:
+            df["Total"] = 0
+    df = df[df["Month"].astype(str).str.upper() != "TOTAL"].dropna(subset=["Month"])
     return df.reset_index(drop=True)
 
 
 def load_costs(data_dir=None) -> pd.DataFrame:
     path = _resolve(data_dir, "costs.xlsx", "GrainCo_Costs_FY2025.xlsx")
     df = pd.read_excel(path, header=1)
-    df.columns = ["Month", "COGS", "Payroll", "Rent", "Marketing", "Total"]
-    df = df[df["Month"] != "TOTAL"].dropna(subset=["Month"])
+    ncols = len(df.columns)
+    if ncols >= 3:
+        cat_names = [f"Category{i+1}" for i in range(ncols - 2)]
+        _force_columns(df, ["Month"] + cat_names + ["Total"])
+    else:
+        df.columns = [f"Col{i}" for i in range(ncols)]
+        df.rename(columns={df.columns[0]: "Month"}, inplace=True)
+        if "Total" not in df.columns:
+            df["Total"] = 0
+    df = df[df["Month"].astype(str).str.upper() != "TOTAL"].dropna(subset=["Month"])
     return df.reset_index(drop=True)
 
 
 def load_pl(data_dir=None) -> dict:
     path = _resolve(data_dir, "pl.xlsx", "GrainCo_PL_FY2025.xlsx")
     df = pd.read_excel(path, header=1)
-    df.columns = ["Item", "Amount", "Pct"]
+    _force_columns(df, ["Item", "Amount", "Pct"])
     df = df.dropna(subset=["Item"])
     return {row["Item"]: row["Amount"] for _, row in df.iterrows() if pd.notna(row["Amount"])}
 
@@ -38,7 +72,7 @@ def load_pl(data_dir=None) -> dict:
 def load_balance_sheet(data_dir=None) -> dict:
     path = _resolve(data_dir, "balance_sheet.xlsx", "GrainCo_BalanceSheet_FY2025.xlsx")
     df = pd.read_excel(path, header=1)
-    df.columns = ["Item", "Amount"]
+    _force_columns(df, ["Item", "Amount"])
     df = df.dropna(subset=["Item"])
     return {row["Item"]: row["Amount"] for _, row in df.iterrows() if pd.notna(row["Amount"])}
 
@@ -46,9 +80,9 @@ def load_balance_sheet(data_dir=None) -> dict:
 def load_trial_balance(data_dir=None) -> pd.DataFrame:
     path = _resolve(data_dir, "trial_balance.xlsx", "GrainCo_TrialBalance_FY2025.xlsx")
     df = pd.read_excel(path, header=1)
-    df.columns = ["Account", "Debit", "Credit"]
+    _force_columns(df, ["Account", "Debit", "Credit"])
     df = df.dropna(subset=["Account"])
-    return df[df["Account"] != "TOTAL"].reset_index(drop=True)
+    return df[df["Account"].astype(str).str.upper() != "TOTAL"].reset_index(drop=True)
 
 
 # ── JSON loaders (used when AI extraction has run) ────────────────────────────

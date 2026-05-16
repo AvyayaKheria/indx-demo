@@ -6,7 +6,7 @@ import plotly
 import plotly.graph_objects as go
 import pandas as pd
 from pathlib import Path
-from flask import Blueprint, render_template, request, redirect, url_for, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, jsonify, send_from_directory, abort
 
 from .loader import (
     load_balance_sheet, load_costs, load_pl, load_revenue, load_trial_balance,
