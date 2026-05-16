@@ -1,191 +1,435 @@
 """
-CFO Intelligence Engine
------------------------
-Generates 6 AI-powered insights from dashboard KPIs.
-Each insight is calibrated to the ACTUAL value ranges (permutation-based)
-so a debt ratio of 0.62 gets a fundamentally different insight and action
-than a debt ratio of 0.91.
-
-Insights are cached to insights.json inside the session directory so
-the Claude call only fires once per session.
+CFO Intelligence Engine — Rule-Based Insights
+----------------------------------------------
+No API calls. Six insights generated instantly from KPI values,
+each calibrated to the actual number ranges with F&B benchmarks.
 """
 
-import os
-import json
 from pathlib import Path
-
-# Ranked preference — first match found in account's available models wins
-_MODEL_PREFERENCE = [
-    "claude-3-5-sonnet",
-    "claude-3-7-sonnet",
-    "claude-sonnet-4",
-    "claude-opus-4",
-    "claude-3-5-haiku",
-    "claude-3-opus",
-    "claude-3-haiku",
-    "claude-3-sonnet",
-]
-
-_resolved_model: str | None = None  # cached after first successful lookup
+import json
 
 
-def _pick_model(client) -> str:
-    """One fast models.list() call to find what this account can actually use."""
-    global _resolved_model
-    if _resolved_model:
-        return _resolved_model
-    try:
-        available = [m.id for m in client.models.list().data]
-        for pref in _MODEL_PREFERENCE:
-            for m_id in available:
-                if pref in m_id.lower():
-                    _resolved_model = m_id
-                    return m_id
-        if available:
-            _resolved_model = available[0]
-            return _resolved_model
-    except Exception:
-        pass
-    return "claude-3-5-sonnet-20241022"  # best-guess fallback
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _fmt(v: float) -> str:
+    """Format a dollar value as $XK or $X.XM."""
+    v = abs(v)
+    if v >= 1_000_000:
+        return f"${v / 1e6:.2f}M"
+    return f"${v / 1e3:.0f}K"
 
 
-# ── Industry benchmarks injected into the prompt ─────────────────────────────
+# ── The six rule sets ─────────────────────────────────────────────────────────
 
-_BENCHMARKS = """
-F&B INDUSTRY BENCHMARKS (use these to contextualise every insight):
-- Gross margin:    55–70 % is healthy; below 50 % is a red flag
-- EBITDA margin:   8–15 % is target; 0–8 % needs attention; negative = crisis
-- Net margin:      3–9 % typical; negative = unsustainable without intervention
-- Current ratio:   1.2–2.0 ideal; below 1.0 = cannot cover short-term debts;
-                   above 3.0 = excess idle cash (opportunity cost)
-- Debt / equity:   below 0.5 = very conservative (under-leveraged growth risk);
-                   0.5–0.75 = conservative but healthy;
-                   0.75–1.0 = moderate, monitor carefully;
-                   above 1.0 = elevated; above 1.5 = high leverage, risk of distress
-- Revenue growth:  healthy F&B scales 10–25 % YoY
-"""
+def _insight_gross_margin(kpis: dict) -> dict:
+    rev = kpis.get("total_revenue", 0)
+    gm  = kpis.get("gross_margin",  0)
+    gp  = kpis.get("gross_profit",  0)
 
-
-def _kpi_block(kpis: dict) -> str:
-    rev   = kpis.get("total_revenue", 0)
-    gp    = kpis.get("gross_profit",  0)
-    gm    = kpis.get("gross_margin",  0)
-    eb    = kpis.get("ebitda",        0)
-    em    = kpis.get("ebitda_margin", 0)
-    np_   = kpis.get("net_profit",    0)
-    nm    = kpis.get("net_margin",    0)
-    ta    = kpis.get("total_assets",  0)
-    te    = kpis.get("total_equity",  0)
-    tl    = kpis.get("total_liabilities", 0)
-    cr    = kpis.get("current_ratio",  0)
-    de    = kpis.get("debt_to_equity", 0)
-    return (
-        f"Total Revenue:         ${rev:,.0f}\n"
-        f"Gross Profit:          ${gp:,.0f}  ({gm:.1f}% margin)\n"
-        f"EBITDA:                ${eb:,.0f}  ({em:.1f}% margin)\n"
-        f"Net Profit (NPAT):     ${np_:,.0f}  ({nm:.1f}% margin)\n"
-        f"Total Assets:          ${ta:,.0f}\n"
-        f"Total Equity:          ${te:,.0f}\n"
-        f"Total Liabilities:     ${tl:,.0f}\n"
-        f"Current Ratio:         {cr:.2f}x\n"
-        f"Debt / Equity:         {de:.2f}x\n"
-    )
-
-
-_PROMPT_TEMPLATE = """\
-You are a senior CFO advisor specialising in food & beverage businesses.
-A founder has just uploaded their financials. Analyse the metrics below and \
-generate exactly 6 sharp, actionable insights — the kind a great CFO would \
-tell the founder in a 15-minute board meeting.
-
-FINANCIAL METRICS (full year):
-{kpi_block}
-{benchmarks}
-
-RULES:
-1. Each insight must reference the EXACT numbers (e.g. "Your EBITDA of -$10,000
-   means…") — never speak in generalities.
-2. Severity is determined by how far the metric deviates from the benchmark:
-   - critical  → dangerous territory, needs immediate action this month
-   - warning   → needs attention within the quarter
-   - positive  → genuine competitive strength worth protecting/scaling
-   - neutral   → acceptable, minor optimisation possible
-3. The "action" must be ONE concrete next step (e.g. "Negotiate supplier
-   contracts to cut COGS by 5 percentage points — that adds $66K gross profit").
-4. Cover these six categories (one insight each):
-   revenue | profitability | cost_structure | liquidity | leverage | risk
-5. Return ONLY a valid JSON array — no markdown, no explanation.
-
-JSON schema (return exactly this structure):
-[
-  {{
-    "category":  "revenue",
-    "title":     "8-word max headline",
-    "severity":  "critical|warning|positive|neutral",
-    "body":      "2–3 sentences. Finding + why it matters + benchmark comparison.",
-    "action":    "One specific, quantified next step."
-  }}
-]
-"""
-
-
-def generate_insights(kpis: dict) -> tuple[list[dict], str | None]:
-    """
-    Call Claude and return (insights, error_message).
-    insights is [] and error_message is set when something goes wrong.
-    """
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        return [], "no_key"
-
-    try:
-        import anthropic
-    except ImportError:
-        return [], "anthropic package not installed"
-
-    prompt = _PROMPT_TEMPLATE.format(
-        kpi_block=_kpi_block(kpis),
-        benchmarks=_BENCHMARKS,
-    )
-
-    try:
-        client   = anthropic.Anthropic(api_key=api_key)
-        model_id = _pick_model(client)   # one fast list call, cached after first use
-        resp = client.messages.create(
-            model=model_id,
-            max_tokens=2048,
-            messages=[{"role": "user", "content": prompt}],
+    if gm >= 65:
+        return dict(
+            category="revenue",
+            title="Gross margin exceeds industry average",
+            severity="positive",
+            body=(
+                f"Your gross margin of {gm:.1f}% is above the F&B benchmark of 60–65%, "
+                f"generating {_fmt(gp)} in gross profit on {_fmt(rev)} revenue. "
+                "Strong pricing power and supplier discipline are driving this."
+            ),
+            action=(
+                f"Lock in quarterly supplier contracts now. Each 1 percentage-point "
+                f"improvement adds {_fmt(rev * 0.01)} to gross profit."
+            ),
         )
-        raw = resp.content[0].text.strip()
+    elif gm >= 50:
+        gap  = 62.5 - gm
+        lost = rev * gap / 100
+        return dict(
+            category="revenue",
+            title="Gross margin below F&B benchmark",
+            severity="warning",
+            body=(
+                f"Your gross margin of {gm:.1f}% trails the F&B industry average of 60–65%. "
+                f"That {gap:.1f}pp gap is costing you roughly {_fmt(lost)} in foregone gross "
+                "profit on your current revenue base."
+            ),
+            action=(
+                "Audit your top 10 menu items by contribution margin. Renegotiate supplier "
+                "terms or reprice low-margin items by 5–8% to close the gap within one quarter."
+            ),
+        )
+    else:
+        gap  = 60 - gm
+        lost = rev * gap / 100
+        return dict(
+            category="revenue",
+            title="Gross margin is critically low",
+            severity="critical",
+            body=(
+                f"At {gm:.1f}%, gross margin is well below the F&B floor of 50%. "
+                f"You are leaving {_fmt(lost)} on the table versus a benchmark operation "
+                "running on the same revenue. COGS is consuming too much of every dollar earned."
+            ),
+            action=(
+                "Escalate COGS review immediately. Target a 5pp margin recovery within "
+                "90 days through supplier renegotiation, menu redesign, and portion control."
+            ),
+        )
 
-        # Strip any accidental markdown fences
-        for fence in ("```json", "```"):
-            if fence in raw:
-                raw = raw.split(fence, 1)[-1].rsplit("```", 1)[0].strip()
-                break
 
-        start = raw.find("[")
-        if start != -1:
-            raw = raw[start:]
+def _insight_ebitda(kpis: dict) -> dict:
+    rev  = kpis.get("total_revenue",   0)
+    eb   = kpis.get("ebitda",          0)
+    em   = kpis.get("ebitda_margin",   0)
 
-        insights = json.loads(raw)
-        clean = []
-        for item in insights:
-            clean.append({
-                "category": item.get("category", "general"),
-                "title":    item.get("title",    "Insight"),
-                "severity": item.get("severity", "neutral"),
-                "body":     item.get("body",     ""),
-                "action":   item.get("action",   ""),
-            })
-        return clean, None
+    if em >= 10:
+        return dict(
+            category="profitability",
+            title="EBITDA margin is healthy",
+            severity="positive",
+            body=(
+                f"EBITDA of {_fmt(eb)} ({em:.1f}% margin) is within the F&B target range of "
+                "8–15%. This means operating costs are well-controlled relative to revenue, "
+                "leaving real cash available for debt service and reinvestment."
+            ),
+            action=(
+                "Maintain OpEx discipline. Model what a 2pp EBITDA improvement would yield — "
+                f"that's {_fmt(rev * 0.02)} in additional operating cash annually."
+            ),
+        )
+    elif em >= 0:
+        target_gap = 8 - em
+        upside     = rev * target_gap / 100
+        return dict(
+            category="profitability",
+            title="EBITDA margin is thin — needs attention",
+            severity="warning",
+            body=(
+                f"EBITDA of {_fmt(eb)} ({em:.1f}% margin) is below the F&B target of 8–15%. "
+                f"Closing the {target_gap:.1f}pp gap to the low end of benchmark would add "
+                f"{_fmt(upside)} to operating earnings on your current revenue."
+            ),
+            action=(
+                "Identify your top three operating cost lines and model a 10% reduction on "
+                "each. Payroll efficiency and occupancy costs are typically the fastest levers."
+            ),
+        )
+    else:
+        shortfall = abs(eb)
+        return dict(
+            category="profitability",
+            title="Negative EBITDA — burning operating cash",
+            severity="critical",
+            body=(
+                f"EBITDA of {_fmt(eb)} ({em:.1f}% margin) means the business is losing "
+                f"{_fmt(shortfall)} before interest, tax, and depreciation. This is not "
+                "a profitability problem — it is an operational cash burn problem requiring "
+                "immediate intervention."
+            ),
+            action=(
+                f"You need to cut {_fmt(shortfall)} from OpEx or grow revenue to reach "
+                "EBITDA breakeven. Freeze all discretionary spend and review headcount "
+                "against revenue per employee this week."
+            ),
+        )
 
-    except Exception as exc:
-        return [], str(exc)
+
+def _insight_net_profit(kpis: dict) -> dict:
+    rev  = kpis.get("total_revenue", 0)
+    np_  = kpis.get("net_profit",    0)
+    nm   = kpis.get("net_margin",    0)
+
+    if nm >= 5:
+        return dict(
+            category="profitability",
+            title="Net margin is strong for F&B",
+            severity="positive",
+            body=(
+                f"Net profit of {_fmt(np_)} ({nm:.1f}% margin) is above the F&B average of "
+                "3–9%. After interest, tax, and depreciation the business is retaining real "
+                "earnings — a sign the capital structure and tax position are managed well."
+            ),
+            action=(
+                "Begin modelling how retained earnings can fund expansion — a second "
+                "location or catering fleet typically requires 12–18 months of net profit."
+            ),
+        )
+    elif nm >= 0:
+        needed = rev * (3 - nm) / 100
+        return dict(
+            category="profitability",
+            title="Net profit exists but margins are slim",
+            severity="warning",
+            body=(
+                f"Net profit of {_fmt(np_)} ({nm:.1f}% margin) is below the F&B floor of 3%. "
+                "The business is technically profitable, but a single bad month or unexpected "
+                "cost spike could push it into loss."
+            ),
+            action=(
+                f"To reach 3% net margin you need {_fmt(needed)} more profit. "
+                "Focus on interest cost reduction (refinance if possible) and "
+                "ensuring all tax credits and deductions are being claimed."
+            ),
+        )
+    else:
+        loss = abs(np_)
+        return dict(
+            category="profitability",
+            title="Business is running at a net loss",
+            severity="critical",
+            body=(
+                f"Net loss of {_fmt(loss)} ({nm:.1f}% margin) means equity is being eroded "
+                "every period this continues. If losses persist, the path leads to either "
+                "equity injection, refinancing, or insolvency."
+            ),
+            action=(
+                f"Build a 13-week cash flow forecast immediately. Identify the month "
+                f"cash runs out and work backwards — you need to close {_fmt(loss)} "
+                "in annual losses through revenue growth, cost cuts, or both."
+            ),
+        )
+
+
+def _insight_liquidity(kpis: dict) -> dict:
+    cr   = kpis.get("current_ratio",        0)
+    ca   = kpis.get("total_assets",         0)  # approximation
+    cl   = kpis.get("total_liabilities",    0)
+
+    if cr >= 2.5:
+        return dict(
+            category="liquidity",
+            title="Strong liquidity — but cash may be idle",
+            severity="neutral",
+            body=(
+                f"Your current ratio of {cr:.2f}x means you hold ${cr:.1f} in short-term "
+                "assets for every $1 of short-term obligations — well above the F&B ideal "
+                "of 1.2–2.0x. While this signals safety, excess liquidity may indicate "
+                "underdeployed cash that could be working harder."
+            ),
+            action=(
+                "Review whether excess cash should be deployed into inventory efficiencies, "
+                "early supplier payment discounts, or short-term interest-bearing instruments."
+            ),
+        )
+    elif cr >= 1.2:
+        return dict(
+            category="liquidity",
+            title="Liquidity is in the healthy range",
+            severity="positive",
+            body=(
+                f"A current ratio of {cr:.2f}x sits within the F&B ideal range of 1.2–2.0x. "
+                "The business can comfortably cover its short-term obligations without "
+                "straining operations or requiring emergency financing."
+            ),
+            action=(
+                "Maintain this buffer. Stress-test liquidity against a 20% revenue decline "
+                "scenario to confirm the ratio stays above 1.0x under pressure."
+            ),
+        )
+    elif cr >= 1.0:
+        return dict(
+            category="liquidity",
+            title="Liquidity is tight — monitor weekly",
+            severity="warning",
+            body=(
+                f"Your current ratio of {cr:.2f}x means short-term assets only just cover "
+                "short-term liabilities. The F&B ideal is 1.2–2.0x. Any unexpected cost "
+                "or revenue shortfall could create a cash crunch."
+            ),
+            action=(
+                "Set up a weekly cash flow dashboard. Negotiate extended payment terms "
+                "with your two largest suppliers to widen the liquidity buffer immediately."
+            ),
+        )
+    else:
+        return dict(
+            category="liquidity",
+            title="Liquidity crisis — liabilities exceed assets",
+            severity="critical",
+            body=(
+                f"A current ratio of {cr:.2f}x means current liabilities exceed current "
+                "assets. The business cannot cover its short-term obligations from existing "
+                "liquid resources — a genuine solvency risk if unaddressed."
+            ),
+            action=(
+                "Contact your lender this week to discuss an emergency working capital "
+                "facility. Simultaneously, accelerate receivables collection and defer "
+                "all non-critical payables to extend your runway."
+            ),
+        )
+
+
+def _insight_leverage(kpis: dict) -> dict:
+    de  = kpis.get("debt_to_equity",        0)
+    tl  = kpis.get("total_liabilities",     0)
+    te  = kpis.get("total_equity",          0)
+
+    if de > 1.5:
+        return dict(
+            category="leverage",
+            title="Leverage is dangerously high",
+            severity="critical",
+            body=(
+                f"Debt-to-equity of {de:.2f}x means creditors own ${de:.1f} for every $1 "
+                f"of equity — well above the F&B danger threshold of 1.5x. "
+                f"With {_fmt(tl)} in total liabilities against {_fmt(te)} equity, "
+                "the balance sheet is fragile."
+            ),
+            action=(
+                "Prioritise debt reduction over growth. Target paying down high-interest "
+                "facilities first. Do not take on new debt until D/E falls below 1.0x."
+            ),
+        )
+    elif de > 1.0:
+        return dict(
+            category="leverage",
+            title="Leverage elevated — watch debt service",
+            severity="warning",
+            body=(
+                f"Debt-to-equity of {de:.2f}x is above the preferred F&B ceiling of 1.0x. "
+                f"You carry {_fmt(tl)} in liabilities against {_fmt(te)} in equity. "
+                "This is manageable today but leaves little room for revenue downside."
+            ),
+            action=(
+                "Model your debt service coverage ratio. If EBITDA / annual debt service "
+                "is below 1.25x, begin refinancing conversations with your bank now."
+            ),
+        )
+    elif de >= 0.5:
+        return dict(
+            category="leverage",
+            title="Leverage is conservative and healthy",
+            severity="positive",
+            body=(
+                f"Debt-to-equity of {de:.2f}x sits in the F&B sweet spot of 0.5–1.0x. "
+                f"You have {_fmt(te)} in equity backing {_fmt(tl)} in liabilities — "
+                "a balance that supports growth without excessive financial risk."
+            ),
+            action=(
+                "You have headroom to leverage for strategic growth. Model whether a "
+                "targeted debt facility at current rates would generate a positive ROI "
+                "on a second revenue stream or expansion."
+            ),
+        )
+    else:
+        return dict(
+            category="leverage",
+            title="Under-leveraged — growth capital available",
+            severity="neutral",
+            body=(
+                f"Debt-to-equity of {de:.2f}x is very conservative — below 0.5x means "
+                "the business is almost entirely equity-funded. While this is low-risk, "
+                "it may indicate an opportunity to use cheap debt to accelerate growth "
+                "rather than relying solely on retained earnings."
+            ),
+            action=(
+                "Speak to your bank about a growth facility. At conservative leverage "
+                "you would qualify for competitive rates — model the ROI of deploying "
+                "debt into your highest-returning revenue channel."
+            ),
+        )
+
+
+def _insight_risk(kpis: dict) -> dict:
+    """Composite risk insight based on the combination of metrics."""
+    em  = kpis.get("ebitda_margin",  0)
+    nm  = kpis.get("net_margin",     0)
+    cr  = kpis.get("current_ratio",  0)
+    de  = kpis.get("debt_to_equity", 0)
+    gm  = kpis.get("gross_margin",   0)
+    rev = kpis.get("total_revenue",  0)
+
+    # Score risk factors
+    risk_flags = sum([
+        em  < 0,
+        nm  < 0,
+        cr  < 1.2,
+        de  > 1.0,
+        gm  < 50,
+    ])
+
+    if risk_flags >= 3:
+        return dict(
+            category="risk",
+            title="Multiple red flags — act now",
+            severity="critical",
+            body=(
+                f"Your financials show {risk_flags} out of 5 key risk indicators in the "
+                "danger zone simultaneously. When negative EBITDA, thin liquidity, and "
+                "elevated leverage occur together, the compounding effect is far more "
+                "dangerous than any single metric in isolation."
+            ),
+            action=(
+                "Convene an emergency financial review with your accountant this week. "
+                "Prioritise cash preservation above all else — cut costs before chasing revenue."
+            ),
+        )
+    elif risk_flags == 2:
+        return dict(
+            category="risk",
+            title="Two risk areas need attention this quarter",
+            severity="warning",
+            body=(
+                f"Two of your five core financial health indicators are outside the safe "
+                "range. This is a yellow light — the business is not in crisis, but "
+                "the risk profile is elevated enough that deterioration in one more area "
+                "would create compounding pressure."
+            ),
+            action=(
+                "Address the two weakest metrics within this quarter. Set a monthly "
+                "KPI review cadence so problems are caught early rather than at year-end."
+            ),
+        )
+    elif risk_flags == 1:
+        return dict(
+            category="risk",
+            title="One risk area to address — otherwise healthy",
+            severity="neutral",
+            body=(
+                "Four of your five core financial health indicators are within or above "
+                "benchmark ranges. The business has a solid foundation — one area needs "
+                "attention but the overall risk profile is manageable."
+            ),
+            action=(
+                "Focus improvement effort on the one underperforming metric. "
+                "With the rest of the business healthy, a targeted fix is achievable "
+                "without distraction from growth initiatives."
+            ),
+        )
+    else:
+        return dict(
+            category="risk",
+            title="Financial health is strong across the board",
+            severity="positive",
+            body=(
+                "All five core financial health indicators — gross margin, EBITDA, "
+                "net profit, liquidity, and leverage — are within or above F&B benchmarks. "
+                "This is a well-run business with a sound financial structure."
+            ),
+            action=(
+                "With fundamentals solid, focus on growth. Model the unit economics "
+                f"of scaling revenue by 20% — at your current margins that adds "
+                f"{_fmt(rev * 0.20 * kpis.get('net_margin', 0) / 100)} in net profit."
+            ),
+        )
+
+
+# ── Public API ────────────────────────────────────────────────────────────────
+
+def generate_insights(kpis: dict) -> list[dict]:
+    """Return 6 rule-based CFO insights from KPI values. Zero API calls."""
+    return [
+        _insight_gross_margin(kpis),
+        _insight_ebitda(kpis),
+        _insight_net_profit(kpis),
+        _insight_liquidity(kpis),
+        _insight_leverage(kpis),
+        _insight_risk(kpis),
+    ]
 
 
 def get_insights(session_dir, kpis: dict) -> tuple[list[dict], str | None]:
-    """Return (insights, error). Uses cache when available."""
+    """Return (insights, error). Caches to insights.json per session."""
     cache_path = None if session_dir is None else Path(session_dir) / "insights.json"
 
     if cache_path and cache_path.exists():
@@ -194,7 +438,7 @@ def get_insights(session_dir, kpis: dict) -> tuple[list[dict], str | None]:
         except Exception:
             pass
 
-    insights, err = generate_insights(kpis)
+    insights = generate_insights(kpis)
 
     if cache_path and insights:
         try:
@@ -202,4 +446,4 @@ def get_insights(session_dir, kpis: dict) -> tuple[list[dict], str | None]:
         except Exception:
             pass
 
-    return insights, err
+    return insights, None
