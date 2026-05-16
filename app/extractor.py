@@ -168,6 +168,13 @@ Spreadsheet content:
 
 
 def _extract_pl(path: Path) -> dict:
+    # Try Xero parser first (fast, no API call required)
+    from .xero_parser import is_xero_format, get_xero_report_type, parse_xero_pl
+    if is_xero_format(path) and get_xero_report_type(path) == "pl":
+        result = parse_xero_pl(path)
+        if result.get("Total Revenue"):
+            return result
+
     xl = _xl_to_text(path)
     prompt = f"""Extract P&L (income statement) data from this financial spreadsheet.
 
@@ -212,6 +219,13 @@ Spreadsheet content:
 
 
 def _extract_balance_sheet(path: Path) -> dict:
+    # Try Xero parser first (fast, no API call required)
+    from .xero_parser import is_xero_format, get_xero_report_type, parse_xero_balance_sheet
+    if is_xero_format(path) and get_xero_report_type(path) == "balance_sheet":
+        result = parse_xero_balance_sheet(path)
+        if result.get("TOTAL ASSETS"):
+            return result
+
     xl = _xl_to_text(path)
     prompt = f"""Extract balance sheet data from this financial spreadsheet.
 
@@ -265,6 +279,13 @@ Spreadsheet content:
 
 
 def _extract_trial_balance(path: Path) -> dict:
+    # Try Xero parser first (fast, no API call required)
+    from .xero_parser import is_xero_format, get_xero_report_type, parse_xero_trial_balance
+    if is_xero_format(path) and get_xero_report_type(path) == "trial_balance":
+        result = parse_xero_trial_balance(path)
+        if result.get("accounts"):
+            return result
+
     xl = _xl_to_text(path)
     prompt = f"""Extract trial balance data from this financial spreadsheet.
 
