@@ -442,6 +442,162 @@
       color: var(--navy);
     }
 
+    /* ── CFO Intelligence ───────────────────────────────────────────────── */
+    .insights-badge {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--slate-400);
+      white-space: nowrap;
+    }
+    .insights-badge-dot {
+      width: 6px; height: 6px;
+      background: var(--teal);
+      border-radius: 50%;
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+    .insights-badge.done .insights-badge-dot {
+      background: var(--green);
+      animation: none;
+    }
+    .insights-badge.error .insights-badge-dot {
+      background: var(--slate-300);
+      animation: none;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: .3; }
+    }
+
+    .insights-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    @media (max-width: 1100px) { .insights-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 640px)  { .insights-grid { grid-template-columns: 1fr; } }
+
+    /* ── Skeleton ── */
+    .insight-skeleton {
+      background: var(--white);
+      border: 1px solid var(--slate-200);
+      border-radius: var(--radius);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .sk-line {
+      background: var(--slate-100);
+      border-radius: 4px;
+      animation: shimmer 1.5s ease-in-out infinite;
+    }
+    .sk-tag    { height: 18px; width: 70px; border-radius: 20px; }
+    .sk-title  { height: 16px; width: 80%; }
+    .sk-body   { height: 12px; width: 100%; }
+    .sk-short  { width: 65%; }
+    .sk-action { height: 12px; width: 55%; margin-top: 4px; background: #e0f2fe; }
+    @keyframes shimmer {
+      0%, 100% { opacity: .7; }
+      50%       { opacity: .35; }
+    }
+
+    /* ── Real insight cards ── */
+    .insight-card {
+      background: var(--white);
+      border: 1px solid var(--slate-200);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      padding: 20px 20px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: box-shadow .15s, transform .15s;
+    }
+    .insight-card:hover {
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1px);
+    }
+    .insight-card.sev-critical { border-top: 3px solid var(--red);   }
+    .insight-card.sev-warning  { border-top: 3px solid var(--amber); }
+    .insight-card.sev-positive { border-top: 3px solid var(--green); }
+    .insight-card.sev-neutral  { border-top: 3px solid var(--slate-300); }
+
+    .insight-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .insight-cat {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 20px;
+    }
+    .cat-revenue       { background: #dbeafe; color: #1e40af; }
+    .cat-profitability { background: #d1fae5; color: #065f46; }
+    .cat-cost_structure{ background: #fef3c7; color: #92400e; }
+    .cat-liquidity     { background: #e0f2fe; color: #075985; }
+    .cat-leverage      { background: #ede9fe; color: #5b21b6; }
+    .cat-risk          { background: #fee2e2; color: #991b1b; }
+    .cat-general       { background: var(--slate-100); color: var(--slate-600); }
+
+    .insight-sev-chip {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 20px;
+    }
+    .sev-chip-critical { background: #fee2e2; color: #991b1b; }
+    .sev-chip-warning  { background: #fef3c7; color: #92400e; }
+    .sev-chip-positive { background: #d1fae5; color: #065f46; }
+    .sev-chip-neutral  { background: var(--slate-100); color: var(--slate-500); }
+
+    .insight-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--slate-900);
+      line-height: 1.3;
+      letter-spacing: -.01em;
+    }
+    .insight-body {
+      font-size: 12.5px;
+      color: var(--slate-600);
+      line-height: 1.6;
+      flex: 1;
+    }
+    .insight-action {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--teal);
+      padding-top: 8px;
+      border-top: 1px solid var(--slate-100);
+      line-height: 1.4;
+    }
+    .insight-action::before {
+      content: "→ ";
+      font-weight: 700;
+    }
+
+    /* no-ai state */
+    .insights-no-ai {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--slate-400);
+      font-size: 13px;
+      background: var(--white);
+      border: 1px dashed var(--slate-200);
+      border-radius: var(--radius);
+    }
+    .insights-no-ai strong { color: var(--slate-600); }
+
     /* ── Footer ─────────────────────────────────────────────────────────── */
     .footer {
       margin-top: 48px;
@@ -674,6 +830,31 @@
     </div>
   </section>
 
+  <!-- ── Section 5: CFO Intelligence ────────────────────────────────────── -->
+  <section class="section" id="insights-section">
+    <div class="section-header">
+      <span class="section-title">CFO Intelligence</span>
+      <div class="section-line"></div>
+      <span class="insights-badge" id="insights-badge">
+        <span class="insights-badge-dot"></span>
+        <span id="insights-badge-label">Analysing…</span>
+      </span>
+    </div>
+
+    <!-- Loading skeleton -->
+    <div class="insights-grid" id="insights-grid">
+      {% for _ in range(6) %}
+      <div class="insight-card insight-skeleton">
+        <div class="sk-line sk-tag"></div>
+        <div class="sk-line sk-title"></div>
+        <div class="sk-line sk-body"></div>
+        <div class="sk-line sk-body sk-short"></div>
+        <div class="sk-line sk-action"></div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
   <!-- ── Footer ───────────────────────────────────────────────────────────── -->
   <footer class="footer">
     <div class="footer-left">
@@ -778,6 +959,74 @@
         alert('Refresh failed: ' + err.message);
       });
   }
+
+  // ── CFO Insights — load asynchronously after charts render ───────────────
+  const CAT_CLASS = {
+    revenue:       'cat-revenue',
+    profitability: 'cat-profitability',
+    cost_structure:'cat-cost_structure',
+    liquidity:     'cat-liquidity',
+    leverage:      'cat-leverage',
+    risk:          'cat-risk',
+  };
+
+  function buildInsightCard(ins) {
+    const catCls = CAT_CLASS[ins.category] || 'cat-general';
+    const sevCls = 'sev-' + ins.severity;
+    const chipCls = 'sev-chip-' + ins.severity;
+    const catLabel = ins.category.replace('_', ' ');
+    return `
+      <div class="insight-card ${sevCls}">
+        <div class="insight-meta">
+          <span class="insight-cat ${catCls}">${catLabel}</span>
+          <span class="insight-sev-chip ${chipCls}">${ins.severity}</span>
+        </div>
+        <div class="insight-title">${ins.title}</div>
+        <div class="insight-body">${ins.body}</div>
+        <div class="insight-action">${ins.action}</div>
+      </div>`;
+  }
+
+  function loadInsights() {
+    const grid  = document.getElementById('insights-grid');
+    const badge = document.getElementById('insights-badge');
+    const label = document.getElementById('insights-badge-label');
+
+    fetch('/api/insights/' + SESSION_ID)
+      .then(r => r.json())
+      .then(data => {
+        if (data.error && (!data.insights || data.insights.length === 0)) {
+          grid.innerHTML = `<div class="insights-no-ai">
+            <strong>AI insights not configured.</strong><br>
+            Add an <code>ANTHROPIC_API_KEY</code> environment variable to enable
+            personalised CFO-level insights for every dashboard.
+          </div>`;
+          badge.classList.add('error');
+          label.textContent = 'Not configured';
+          return;
+        }
+        const insights = data.insights || [];
+        if (insights.length === 0) {
+          grid.innerHTML = `<div class="insights-no-ai">
+            <strong>No insights generated.</strong> Add <code>ANTHROPIC_API_KEY</code> to enable AI analysis.
+          </div>`;
+          badge.classList.add('error');
+          label.textContent = 'Not configured';
+          return;
+        }
+        grid.innerHTML = insights.map(buildInsightCard).join('');
+        badge.classList.add('done');
+        label.textContent = insights.length + ' insights ready';
+      })
+      .catch(() => {
+        grid.innerHTML = `<div class="insights-no-ai">Could not load insights — check your connection.</div>`;
+        badge.classList.add('error');
+        label.textContent = 'Failed';
+      });
+  }
+
+  // Kick off after Plotly charts have rendered (next tick)
+  setTimeout(loadInsights, 0);
 </script>
 
 </body>

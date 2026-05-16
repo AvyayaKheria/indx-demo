@@ -484,3 +484,26 @@ def refresh(session_id):
 
     charts_obj = {k: json.loads(v) for k, v in charts.items()}
     return jsonify({"kpis": kpis, "charts": charts_obj, "cost_legend": cost_legend})
+
+
+@main.route("/api/insights/<session_id>")
+def api_insights(session_id):
+    if session_id == "demo":
+        data_dir = None
+    else:
+        session_dir = UPLOAD_DIR / session_id
+        if not session_dir.exists():
+            return jsonify({"error": "Session not found"}), 404
+        data_dir = session_dir
+
+    try:
+        kpis, _, _ = _build_dashboard_data(data_dir)
+    except Exception as e:
+        return jsonify({"error": str(e), "insights": []}), 500
+
+    try:
+        from .insights import get_insights
+        insights = get_insights(data_dir, kpis)
+        return jsonify({"insights": insights})
+    except Exception as e:
+        return jsonify({"error": str(e), "insights": []}), 500
