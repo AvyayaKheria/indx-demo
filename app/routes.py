@@ -13,7 +13,7 @@ from .loader import (
     load_revenue_json, load_costs_json, load_pl_json,
     load_balance_sheet_json, load_trial_balance_json,
 )
-from .extractor import extract_all, ExtractionError
+# extractor is kept for future use but not triggered in the upload flow
 
 main = Blueprint("main", __name__)
 
@@ -424,25 +424,12 @@ def upload():
         shutil.rmtree(session_dir, ignore_errors=True)
         return render_template("upload.html", slots=FILE_SLOTS, errors=errors)
 
-    # ── Step 2: AI extraction (if API key set) or direct column validation ────
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        try:
-            extract_all(session_dir)
-        except ExtractionError as e:
-            shutil.rmtree(session_dir, ignore_errors=True)
-            return render_template("upload.html", slots=FILE_SLOTS, errors=[str(e)])
-        return redirect(url_for("main.confirm", session_id=session_id))
-    else:
-        # Fallback: validate column counts then go straight to dashboard
-        col_errors = []
-        for key, filename, label, ncols, col_hint in FILE_SLOTS:
-            err = _validate_xlsx(session_dir / filename, ncols, label, col_hint)
-            if err:
-                col_errors.append(err)
-        if col_errors:
-            shutil.rmtree(session_dir, ignore_errors=True)
-            return render_template("upload.html", slots=FILE_SLOTS, errors=col_errors)
-        return redirect(url_for("main.dashboard", session_id=session_id))
+    # ── Step 2: Go straight to dashboard (direct Excel loaders, no AI) ──────────
+    # AI extraction is intentionally disabled in the upload flow — it caused
+    # Render's 30-second request timeout to be hit before the response returned.
+    # The loaders read column names directly from each file's header row, so
+    # any reasonably formatted .xlsx works without needing Claude.
+    return redirect(url_for("main.dashboard", session_id=session_id))
 
 
 @main.route("/confirm/<session_id>")

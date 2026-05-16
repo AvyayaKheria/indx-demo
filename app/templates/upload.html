@@ -378,8 +378,7 @@
   </div>
 
   <div class="upload-note">
-    AI reads your files regardless of layout — any column names, any structure.<br>
-    Processing takes about 20–30 seconds while Claude analyses your data.<br>
+    Upload your five .xlsx files and the dashboard generates instantly.<br>
     Files are not stored permanently.
   </div>
 
@@ -406,14 +405,13 @@
     const btn   = document.getElementById('gen-btn');
     const label = document.getElementById('gen-label');
     btn.classList.add('loading');
-    label.textContent = 'Reading files with AI…';
+    label.textContent = 'Reading your files…';
     // Cycle through messages so user knows it's working
     const msgs = [
-      'Reading files with AI…',
-      'Extracting revenue data…',
-      'Extracting cost data…',
-      'Extracting P&L…',
-      'Extracting balance sheet…',
+      'Reading your files…',
+      'Building revenue charts…',
+      'Building cost analysis…',
+      'Building balance sheet…',
       'Almost done…',
     ];
     let i = 0;
