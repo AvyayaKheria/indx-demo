@@ -724,6 +724,210 @@
       vertical-align: middle;
     }
 
+    /* ── Ask CFO AI card ───────────────────────────────────────────────── */
+    .ask-card {
+      background: var(--white);
+      border: 1px solid var(--slate-200);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      padding: 20px 24px 18px;
+      margin-bottom: 36px;
+    }
+
+    .ask-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .ask-dot {
+      width: 8px; height: 8px;
+      background: var(--teal);
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .ask-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--slate-700);
+    }
+    .ask-hint {
+      font-size: 12px;
+      color: var(--slate-400);
+      margin-left: 2px;
+    }
+
+    /* Input row */
+    .ask-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .ask-input {
+      flex: 1;
+      padding: 11px 16px;
+      border: 1.5px solid var(--slate-200);
+      border-radius: var(--radius);
+      font-family: inherit;
+      font-size: 14px;
+      color: var(--slate-900);
+      background: var(--white);
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+      min-width: 0;
+    }
+    .ask-input::placeholder { color: var(--slate-400); }
+    .ask-input:focus {
+      border-color: var(--teal);
+      box-shadow: 0 0 0 3px rgba(13,148,136,.10);
+    }
+    .ask-input:disabled { background: var(--slate-50); cursor: not-allowed; }
+
+    .ask-send {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: var(--navy);
+      color: white;
+      border: none;
+      font-size: 17px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background .15s, transform .1s;
+    }
+    .ask-send:hover:not(:disabled) { background: #0c1f38; }
+    .ask-send:active:not(:disabled) { transform: scale(.91); }
+    .ask-send:disabled { background: var(--slate-300); cursor: not-allowed; }
+
+    /* Suggestion chips */
+    .ask-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 11px;
+    }
+    .ask-chip {
+      padding: 5px 13px;
+      border: 1px solid var(--slate-200);
+      border-radius: 20px;
+      font-family: inherit;
+      font-size: 12px;
+      color: var(--slate-500);
+      background: var(--slate-50);
+      cursor: pointer;
+      transition: border-color .15s, color .15s, background .15s;
+      white-space: nowrap;
+    }
+    .ask-chip:hover {
+      border-color: var(--teal);
+      color: var(--teal);
+      background: #f0fdfa;
+    }
+
+    /* Chat history */
+    .ask-history {
+      display: none;       /* hidden until first message */
+      flex-direction: column;
+      gap: 0;
+      margin-top: 18px;
+      max-height: 480px;
+      overflow-y: auto;
+      scroll-behavior: smooth;
+    }
+    .ask-history.has-messages { display: flex; }
+    .ask-history::-webkit-scrollbar { width: 3px; }
+    .ask-history::-webkit-scrollbar-track { background: transparent; }
+    .ask-history::-webkit-scrollbar-thumb { background: var(--slate-200); border-radius: 2px; }
+
+    /* Q&A pair */
+    .ask-pair {
+      padding: 14px 0;
+      border-top: 1px solid var(--slate-100);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      animation: fadeUp .2s ease;
+    }
+    .ask-pair:first-child { border-top: none; padding-top: 0; }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Question row */
+    .ask-q {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+    .ask-q-tag {
+      flex-shrink: 0;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .06em;
+      color: var(--slate-400);
+      background: var(--slate-100);
+      padding: 2px 7px;
+      border-radius: 4px;
+    }
+    .ask-q-text {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--slate-700);
+      line-height: 1.5;
+    }
+
+    /* Answer row */
+    .ask-a {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .ask-a-badge {
+      flex-shrink: 0;
+      width: 24px; height: 24px;
+      border-radius: 6px;
+      background: var(--teal);
+      color: white;
+      font-size: 8px;
+      font-weight: 800;
+      letter-spacing: .04em;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 1px;
+    }
+    .ask-a-text {
+      font-size: 14px;
+      color: var(--slate-800);
+      line-height: 1.70;
+      flex: 1;
+      min-height: 22px;
+    }
+
+    /* Typing dots */
+    .ask-dots {
+      display: inline-flex;
+      gap: 4px;
+      align-items: center;
+      padding: 3px 0;
+    }
+    .ask-dots span {
+      width: 5px; height: 5px;
+      background: var(--slate-300);
+      border-radius: 50%;
+      animation: askBounce .85s ease-in-out infinite;
+    }
+    .ask-dots span:nth-child(2) { animation-delay: .14s; }
+    .ask-dots span:nth-child(3) { animation-delay: .28s; }
+    @keyframes askBounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: .55; }
+      30%            { transform: translateY(-5px); opacity: 1; }
+    }
+
     /* ── Responsive ────────────────────────────────────────────────────── */
     @media (max-width: 1100px) {
       .kpi-grid { grid-template-columns: repeat(2, 1fr); }
@@ -769,6 +973,33 @@
 </header>
 
 <div class="page">
+
+  <!-- ── Ask CFO AI ────────────────────────────────────────────────────────── -->
+  <div class="ask-card">
+    <div class="ask-header">
+      <span class="ask-dot"></span>
+      <span class="ask-title">Ask CFO AI</span>
+      <span class="ask-hint">Powered by Claude · references your actual data</span>
+    </div>
+    <div class="ask-row">
+      <input
+        type="text"
+        id="ask-input"
+        class="ask-input"
+        placeholder="Ask anything about your financials… e.g. Why did margins drop? What is our biggest cost problem?"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <button id="ask-send" class="ask-send" title="Send">→</button>
+    </div>
+    <div class="ask-chips" id="ask-chips">
+      <button class="ask-chip" onclick="askSuggestion(this)">What is our biggest cost problem?</button>
+      <button class="ask-chip" onclick="askSuggestion(this)">How does our gross margin compare to healthy F&amp;B businesses?</button>
+      <button class="ask-chip" onclick="askSuggestion(this)">What should we focus on to improve profitability?</button>
+      <button class="ask-chip" onclick="askSuggestion(this)">How many months of cash runway do we have?</button>
+    </div>
+    <div class="ask-history" id="ask-history"></div>
+  </div>
 
   <!-- ── Section 1: KPIs ─────────────────────────────────────────────────── -->
   <section class="section">
@@ -1149,6 +1380,145 @@
 
   // Kick off after Plotly charts have rendered (next tick)
   setTimeout(loadInsights, 0);
+
+  // ── Ask CFO AI ────────────────────────────────────────────────────────────
+  (function () {
+    const inputEl   = document.getElementById('ask-input');
+    const sendBtn   = document.getElementById('ask-send');
+    const historyEl = document.getElementById('ask-history');
+    const MAX_PAIRS = 5;
+    let pairSeq = 0;
+    let busy    = false;
+
+    function escHtml(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function trimHistory() {
+      const pairs = historyEl.querySelectorAll('.ask-pair');
+      if (pairs.length > MAX_PAIRS) {
+        pairs[0].remove();
+      }
+    }
+
+    function appendPair(question) {
+      trimHistory();
+      const id = ++pairSeq;
+      const pair = document.createElement('div');
+      pair.className = 'ask-pair';
+      pair.id = `ask-pair-${id}`;
+      pair.innerHTML = `
+        <div class="ask-q">
+          <span class="ask-q-tag">YOU</span>
+          <span class="ask-q-text">${escHtml(question)}</span>
+        </div>
+        <div class="ask-a">
+          <div class="ask-a-badge">AI</div>
+          <div class="ask-a-text" id="ask-ans-${id}">
+            <span class="ask-dots"><span></span><span></span><span></span></span>
+          </div>
+        </div>`;
+      historyEl.appendChild(pair);
+      historyEl.classList.add('has-messages');
+      historyEl.scrollTop = historyEl.scrollHeight;
+      return id;
+    }
+
+    async function streamAnswer(question, pairId) {
+      const ansEl = document.getElementById(`ask-ans-${pairId}`);
+      let text    = '';
+      let started = false;
+
+      try {
+        const resp = await fetch('/api/ask/' + SESSION_ID, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question }),
+        });
+
+        if (!resp.ok) {
+          ansEl.textContent = 'Unable to process question, please try again.';
+          return;
+        }
+
+        const reader = resp.body.getReader();
+        const dec    = new TextDecoder();
+        let   buf    = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buf += dec.decode(value, { stream: true });
+          const lines = buf.split('\n');
+          buf = lines.pop();   // keep trailing incomplete line
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            let evt;
+            try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+
+            if (evt.error) {
+              ansEl.textContent = 'Unable to process question, please try again.';
+              return;
+            }
+            if (evt.text) {
+              if (!started) {
+                ansEl.textContent = '';  // clear typing dots
+                started = true;
+              }
+              text += evt.text;
+              ansEl.textContent = text;
+              historyEl.scrollTop = historyEl.scrollHeight;
+            }
+          }
+        }
+
+        if (!started) {
+          ansEl.textContent = 'Unable to process question, please try again.';
+        }
+
+      } catch {
+        ansEl.textContent = 'Unable to process question, please try again.';
+      }
+    }
+
+    async function doAsk() {
+      if (busy) return;
+      const q = inputEl.value.trim();
+      if (!q) return;
+
+      busy = true;
+      inputEl.value    = '';
+      inputEl.disabled = true;
+      sendBtn.disabled = true;
+
+      const pairId = appendPair(q);
+      await streamAnswer(q, pairId);
+
+      busy             = false;
+      inputEl.disabled = false;
+      sendBtn.disabled = false;
+      inputEl.focus();
+    }
+
+    // Wire up events
+    sendBtn.addEventListener('click', doAsk);
+    inputEl.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doAsk(); }
+    });
+
+    // Expose for chip onclick
+    window.askSuggestion = function (el) {
+      if (busy) return;
+      inputEl.value = el.textContent.trim();
+      doAsk();
+    };
+  })();
 
   // ── AI Financial Insights ────────────────────────────────────────────────
   (function loadAiInsights() {

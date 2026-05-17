@@ -6,7 +6,9 @@ import plotly
 import plotly.graph_objects as go
 import pandas as pd
 from pathlib import Path
-from flask import Blueprint, render_template, request, redirect, url_for, jsonify, send_from_directory, abort, send_file
+from flask import (Blueprint, render_template, request, redirect, url_for,
+                   jsonify, send_from_directory, abort, send_file,
+                   stream_with_context, Response)
 
 from .loader import (
     load_balance_sheet, load_costs, load_pl, load_revenue, load_trial_balance,
@@ -560,6 +562,177 @@ def export_pdf(session_id):
         mimetype="application/pdf",
         as_attachment=True,
         download_name="GrainCo_CFO_Report_FY2025.pdf",
+    )
+
+
+# ── Financial context builder (used by /api/ask) ─────────────────────────────
+
+def _build_financial_context(data_dir, kpis, cost_legend) -> str:
+    """
+    Assemble a structured plain-text summary of all financial data so Claude
+    can answer natural-language questions with specific numbers.
+    """
+    lines = []
+
+    # ── KPIs ─────────────────────────────────────────────────────────────────
+    lines += [
+        "=== KEY PERFORMANCE INDICATORS (FY2025) ===",
+        f"  Total Revenue:          ${kpis.get('total_revenue',     0):>14,.0f}",
+        f"  Gross Profit:           ${kpis.get('gross_profit',      0):>14,.0f}  ({kpis.get('gross_margin',  0):.1f}% margin)",
+        f"  EBITDA:                 ${kpis.get('ebitda',            0):>14,.0f}  ({kpis.get('ebitda_margin', 0):.1f}% margin)",
+        f"  Net Profit After Tax:   ${kpis.get('net_profit',        0):>14,.0f}  ({kpis.get('net_margin',    0):.1f}% margin)",
+        f"  Total Assets:           ${kpis.get('total_assets',      0):>14,.0f}",
+        f"  Total Equity:           ${kpis.get('total_equity',      0):>14,.0f}",
+        f"  Total Liabilities:      ${kpis.get('total_liabilities', 0):>14,.0f}",
+        f"  Current Ratio:          {kpis.get('current_ratio',      0):>13.2f}x",
+        f"  Debt/Equity Ratio:      {kpis.get('debt_to_equity',     0):>13.2f}x",
+        "",
+    ]
+
+    # ── Monthly revenue ───────────────────────────────────────────────────────
+    try:
+        if _has_extracted_json(data_dir):
+            rev_df = load_revenue_json(data_dir)
+        else:
+            rev_df = load_revenue(data_dir)
+        ch_cols = [c for c in rev_df.columns if c not in ("Month", "Total")]
+        lines.append("=== MONTHLY REVENUE ===")
+        lines.append("  " + f"{'Month':<8}" + "".join(f"  {c:>12}" for c in ch_cols) + f"  {'Total':>12}")
+        for _, row in rev_df.iterrows():
+            r = "  " + f"{str(row['Month']):<8}"
+            r += "".join(f"  ${row.get(c, 0):>11,.0f}" for c in ch_cols)
+            r += f"  ${row.get('Total', 0):>11,.0f}"
+            lines.append(r)
+        lines.append("")
+    except Exception:
+        pass
+
+    # ── Annual cost breakdown ─────────────────────────────────────────────────
+    if cost_legend:
+        lines.append("=== ANNUAL COST BREAKDOWN ===")
+        for item in cost_legend:
+            lines.append(f"  {item['label']:<22} ${item['value']:>12,.0f}   ({item['pct']})")
+        lines.append("")
+
+    # ── Monthly costs ─────────────────────────────────────────────────────────
+    try:
+        if _has_extracted_json(data_dir):
+            cost_df = load_costs_json(data_dir)
+        else:
+            cost_df = load_costs(data_dir)
+        cost_cols = [c for c in cost_df.columns if c not in ("Month", "Total")]
+        lines.append("=== MONTHLY COSTS ===")
+        lines.append("  " + f"{'Month':<8}" + "".join(f"  {c:>12}" for c in cost_cols) + f"  {'Total':>12}")
+        for _, row in cost_df.iterrows():
+            r = "  " + f"{str(row['Month']):<8}"
+            r += "".join(f"  ${row.get(c, 0):>11,.0f}" for c in cost_cols)
+            r += f"  ${row.get('Total', 0):>11,.0f}"
+            lines.append(r)
+        lines.append("")
+    except Exception:
+        pass
+
+    # ── Balance sheet ─────────────────────────────────────────────────────────
+    try:
+        if _has_extracted_json(data_dir):
+            bs = load_balance_sheet_json(data_dir)
+        else:
+            bs = load_balance_sheet(data_dir)
+        lines.append("=== BALANCE SHEET (31 Dec 2025) ===")
+        for item, amount in bs.items():
+            try:
+                if abs(float(amount)) > 0:
+                    lines.append(f"  {str(item):<38} ${float(amount):>12,.0f}")
+            except (TypeError, ValueError):
+                pass
+        lines.append("")
+    except Exception:
+        pass
+
+    return "\n".join(lines)
+
+
+# ── System prompt for the ask endpoint ───────────────────────────────────────
+_ASK_SYSTEM = (
+    "You are a senior CFO advisor with deep expertise in financial analysis. "
+    "You have been given a company's complete financial data. "
+    "Answer the user's question in 2-3 sentences maximum. "
+    "Be specific, reference actual numbers, and be actionable. "
+    "If the question cannot be answered from the data provided, say so clearly. "
+    "Never make up numbers."
+)
+
+
+@main.route("/api/ask/<session_id>", methods=["POST"])
+def api_ask(session_id):
+    data = request.get_json(silent=True) or {}
+    question = str(data.get("question", "")).strip()
+    if not question:
+        return jsonify({"error": "No question provided"}), 400
+
+    if session_id == "demo":
+        data_dir = None
+    else:
+        session_dir = UPLOAD_DIR / session_id
+        if not session_dir.exists():
+            return jsonify({"error": "Session not found"}), 404
+        data_dir = session_dir
+
+    try:
+        kpis, _, cost_legend = _build_dashboard_data(data_dir)
+    except Exception as e:
+        return jsonify({"error": f"Could not load data: {e}"}), 500
+
+    context = _build_financial_context(data_dir, kpis, cost_legend)
+
+    def generate():
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        if not api_key:
+            yield f"data: {json.dumps({'error': 'ANTHROPIC_API_KEY not configured'})}\n\n"
+            return
+        try:
+            import anthropic
+        except ImportError:
+            yield f"data: {json.dumps({'error': 'anthropic package not installed'})}\n\n"
+            return
+
+        client = anthropic.Anthropic(api_key=api_key)
+
+        # Discover best model
+        try:
+            from .insights import _best_model
+            model_id, err = _best_model(client)
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+            return
+
+        if not model_id:
+            yield f"data: {json.dumps({'error': err})}\n\n"
+            return
+
+        try:
+            with client.messages.stream(
+                model=model_id,
+                max_tokens=256,
+                system=_ASK_SYSTEM,
+                messages=[{
+                    "role": "user",
+                    "content": f"Financial data:\n\n{context}\n\nQuestion: {question}",
+                }],
+            ) as stream:
+                for text in stream.text_stream:
+                    yield f"data: {json.dumps({'text': text})}\n\n"
+            yield f"data: {json.dumps({'done': True})}\n\n"
+        except Exception as exc:
+            yield f"data: {json.dumps({'error': f'Claude error: {exc}'})}\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",   # disable Nginx/Render proxy buffering
+        },
     )
 
 
