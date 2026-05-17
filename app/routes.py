@@ -507,3 +507,22 @@ def api_insights(session_id):
         return jsonify({"insights": insights, "error": err})
     except Exception as e:
         return jsonify({"error": str(e), "insights": []}), 500
+
+
+@main.route("/api/ai-insights/<session_id>")
+def api_ai_insights(session_id):
+    if session_id == "demo":
+        data_dir = None
+    else:
+        session_dir = UPLOAD_DIR / session_id
+        if not session_dir.exists():
+            return jsonify({"bullets": None}), 404
+        data_dir = session_dir
+
+    try:
+        kpis, _, _ = _build_dashboard_data(data_dir)
+        from .insights import get_ai_bullets
+        bullets = get_ai_bullets(data_dir, kpis)
+        return jsonify({"bullets": bullets})
+    except Exception:
+        return jsonify({"bullets": None})

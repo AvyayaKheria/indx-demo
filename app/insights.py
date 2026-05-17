@@ -1,12 +1,18 @@
 """
-CFO Intelligence Engine — Rule-Based Insights
-----------------------------------------------
-No API calls. Six insights generated instantly from KPI values,
-each calibrated to the actual number ranges with F&B benchmarks.
+CFO Intelligence Engine
+-----------------------
+Two layers:
+  1. Rule-based insights  — instant, zero API calls (generate_insights / get_insights)
+  2. AI bullet insights   — one Claude call per session, cached (generate_ai_bullets / get_ai_bullets)
 """
 
+import os
+import re
 from pathlib import Path
 import json
+
+# In-memory cache for demo (data_dir=None) so we don't re-call on every page load
+_demo_ai_cache: list[str] | None = None
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -447,3 +453,104 @@ def get_insights(session_dir, kpis: dict) -> tuple[list[dict], str | None]:
             pass
 
     return insights, None
+
+
+# ── AI bullet insights (one Claude call, cached) ──────────────────────────────
+
+_AI_PROMPT = """\
+You are a CFO advisor analysing a company's financial dashboard. Based on these figures, \
+provide exactly 4 bullet points of sharp, specific financial insights. Be direct and \
+actionable. Flag any concerns. Highlight any strengths. Reference specific numbers.
+
+Financial data:
+
+Total Revenue: ${total_revenue:,.0f}
+Gross Profit: ${gross_profit:,.0f} ({gross_margin:.1f}% margin)
+EBITDA: ${ebitda:,.0f} ({ebitda_margin:.1f}% margin)
+Net Profit: ${net_profit:,.0f} ({net_margin:.1f}% margin)
+Total Assets: ${total_assets:,.0f}
+Total Equity: ${total_equity:,.0f}
+Current Ratio: {current_ratio:.2f}x
+Debt to Equity: {debt_to_equity:.2f}x
+
+Return exactly 4 bullet points. Each bullet: one sentence, specific, references actual \
+numbers. No preamble, no conclusion. Just the 4 bullets."""
+
+
+def generate_ai_bullets(kpis: dict) -> list[str] | None:
+    """
+    Call Claude and return a list of 4 bullet strings.
+    Returns None silently on any failure (section is hidden, no error shown).
+    """
+    global _demo_ai_cache
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return None
+
+    try:
+        import anthropic
+    except ImportError:
+        return None
+
+    prompt = _AI_PROMPT.format(**{k: kpis.get(k, 0) for k in [
+        "total_revenue", "gross_profit", "gross_margin",
+        "ebitda", "ebitda_margin", "net_profit", "net_margin",
+        "total_assets", "total_equity", "current_ratio", "debt_to_equity",
+    ]})
+
+    try:
+        client = anthropic.Anthropic(api_key=api_key)
+        resp   = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=512,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = resp.content[0].text.strip()
+
+        # Parse — handle •  -  *  ·  1.  1)  etc.
+        bullets = []
+        for line in raw.split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            line = re.sub(r"^[•\-\*·]\s*", "", line)
+            line = re.sub(r"^\d+[\.\)]\s*", "", line)
+            if line:
+                bullets.append(line)
+
+        return bullets[:4] if bullets else None
+
+    except Exception:
+        return None
+
+
+def get_ai_bullets(session_dir, kpis: dict) -> list[str] | None:
+    """Return cached AI bullets if available, else generate and cache."""
+    global _demo_ai_cache
+
+    # Demo path — use in-memory cache
+    if session_dir is None:
+        if _demo_ai_cache is not None:
+            return _demo_ai_cache
+        result = generate_ai_bullets(kpis)
+        _demo_ai_cache = result
+        return result
+
+    # Session path — cache to ai_insights.json
+    cache_path = Path(session_dir) / "ai_insights.json"
+    if cache_path.exists():
+        try:
+            return json.loads(cache_path.read_text())
+        except Exception:
+            pass
+
+    result = generate_ai_bullets(kpis)
+
+    if result:
+        try:
+            cache_path.write_text(json.dumps(result))
+        except Exception:
+            pass
+
+    return result
