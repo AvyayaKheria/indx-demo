@@ -223,6 +223,19 @@ def _build_dashboard_data(data_dir=None):
     current_ratio  = round(current_assets / current_liabilities, 2) if current_liabilities else 0
     debt_to_equity = round(total_liabilities / total_equity, 2)    if total_equity         else 0
 
+    # ── Depreciation & Amortisation (non-cash add-back for cash burn) ───────
+    depreciation = 0
+    for _plk, _plv in pl.items():
+        _kl = str(_plk).strip().lower()
+        if any(p in _kl for p in ('depreciation', 'amortisation', 'amortization',
+                                   'd & a', 'd&a', ' da ')):
+            try:
+                _f = float(_plv)
+                if _f != 0:
+                    depreciation = abs(_f); break   # always treat as positive add-back
+            except (TypeError, ValueError):
+                pass
+
     # ── Cash on Hand (for runway calculator) ─────────────────────────────────
     cash = 0
     for _bsk, _bsv in bs.items():
@@ -258,7 +271,7 @@ def _build_dashboard_data(data_dir=None):
         current_ratio=current_ratio, debt_to_equity=debt_to_equity,
         total_assets=total_assets, total_equity=total_equity, total_liabilities=total_liabilities,
         current_assets=current_assets, current_liabilities=current_liabilities,
-        cash=cash,
+        cash=cash, depreciation=depreciation,
     )
 
     months = rev_df["Month"].tolist()

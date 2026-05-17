@@ -1673,9 +1673,9 @@
           <div class="rw-card-sub">From balance sheet</div>
         </div>
         <div class="rw-card">
-          <div class="rw-card-label">Monthly Burn Rate</div>
+          <div class="rw-card-label" id="rw-burn-label">Monthly Burn Rate</div>
           <div class="rw-card-value" id="rw-burn-val">—</div>
-          <div class="rw-card-sub">Net cash consumed / month</div>
+          <div class="rw-card-sub" id="rw-burn-sub">Net cash flow / month</div>
         </div>
         <div class="rw-card">
           <div class="rw-card-label">Runway</div>
@@ -2335,11 +2335,19 @@
 
   // ── Cash Runway Calculator ───────────────────────────────────────────────
   (function () {
-    const CASH       = {{ kpis.cash | default(0) }};
-    const NET_PROFIT = {{ kpis.net_profit }};
-    const REVENUE    = {{ kpis.total_revenue }};
+    const CASH         = {{ kpis.cash | default(0) }};
+    const NET_PROFIT   = {{ kpis.net_profit }};
+    const REVENUE      = {{ kpis.total_revenue }};
+    // Depreciation & amortisation are non-cash — add back to get true cash profit
+    const DEPRECIATION = {{ kpis.depreciation | default(0) }};
 
     const TEAL = '#0d9488', RED = '#dc2626', GRAY = '#e2e8f0';
+
+    // ── Base cash profit & total cash costs ──────────────────────────────
+    // Cash Profit = Net Profit + Depreciation (removes non-cash charge)
+    // Cash Costs  = Revenue − Cash Profit
+    const BASE_CASH_PROFIT  = NET_PROFIT + DEPRECIATION;
+    const TOTAL_CASH_COSTS  = REVENUE - BASE_CASH_PROFIT;
 
     // ── Show/hide top-level states ────────────────────────────────────────
     const noData    = document.getElementById('rw-no-data');
@@ -2351,24 +2359,26 @@
       return;
     }
     main.style.display = '';
-    if (NET_PROFIT >= 0) {
+    // Banner shown only for base-case (slider=0) cash-generative state
+    if (BASE_CASH_PROFIT >= 0) {
       posBanner.style.display = '';
       document.getElementById('rw-cash-pos-amount').textContent = fmtDollar(CASH);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
-    // costChangePct: POSITIVE = cost increase (bad), NEGATIVE = cost reduction (good)
-    function adjNetProfit(costChangePct) {
-      const totalCosts = REVENUE - NET_PROFIT;
-      const adjCosts   = totalCosts * (1 + costChangePct / 100);
+    // costChangePct: POSITIVE = costs rise (worse), NEGATIVE = costs fall (better)
+    function adjCashProfit(costChangePct) {
+      const adjCosts = TOTAL_CASH_COSTS * (1 + costChangePct / 100);
       return REVENUE - adjCosts;
     }
 
     function calcRunway(costChangePct) {
-      const np          = adjNetProfit(costChangePct);
-      const monthlyBurn = np < 0 ? Math.abs(np) / 12 : 0;
+      const cp          = adjCashProfit(costChangePct);
+      const monthlyFlow = cp / 12;           // positive = generating, negative = burning
+      const monthlyBurn = cp < 0 ? Math.abs(monthlyFlow) : 0;
       return {
-        np,
+        cp,
+        monthlyFlow,
         monthlyBurn,
         runway: monthlyBurn > 0 ? CASH / monthlyBurn : Infinity,
       };
@@ -2420,39 +2430,50 @@
     }
 
     function render(costChangePct) {
-      const { np, monthlyBurn, runway } = calcRunway(costChangePct);
+      const { cp, monthlyFlow, monthlyBurn, runway } = calcRunway(costChangePct);
       const cashEl    = document.getElementById('rw-cash-val');
+      const burnLbl   = document.getElementById('rw-burn-label');
       const burnEl    = document.getElementById('rw-burn-val');
+      const burnSub   = document.getElementById('rw-burn-sub');
       const runEl     = document.getElementById('rw-runway-val');
       const runSub    = document.getElementById('rw-runway-sub');
       const txt       = document.getElementById('rw-result-text');
       const critical  = document.getElementById('rw-critical');
-      const col       = runwayColor(runway);
       const absPct    = Math.abs(costChangePct);
 
       cashEl.textContent = fmtDollar(CASH);
 
-      // ── Critical warning ───────────────────────────────────────────────
-      critical.style.display = (np < 0 && runway < 3) ? '' : 'none';
+      // ── Critical warning (< 3 months and burning) ─────────────────────
+      critical.style.display = (cp < 0 && runway < 3) ? '' : 'none';
 
-      if (np >= 0) {
-        // ── Cash-positive scenario ───────────────────────────────────────
-        burnEl.textContent = '$0/mo';
-        runEl.textContent  = 'Cash Positive ✓';
-        runEl.className    = 'rw-card-value rw-green';
-        runSub.textContent = 'Generating cash at this cost level';
+      if (cp >= 0) {
+        // ── Cash generative ──────────────────────────────────────────────
+        burnLbl.textContent = 'Monthly Cash Generation';
+        burnEl.textContent  = fmtDollar(Math.abs(monthlyFlow)) + '/mo';
+        burnEl.style.color  = '#16a34a';
+        burnSub.textContent = 'Cash flowing in each month';
+
+        runEl.textContent   = 'Cash Generative';
+        runEl.className     = 'rw-card-value rw-green';
+        runSub.textContent  = 'No runway concern';
         updateBar(Infinity);
 
         if (costChangePct === 0) {
-          txt.innerHTML = 'The business is currently <strong>cash positive</strong>. Drag right to stress-test cost increases.';
+          txt.innerHTML = 'The business is currently <strong>cash generative</strong> — cash is growing. Drag right to stress-test cost increases.';
         } else if (costChangePct < 0) {
-          txt.innerHTML = `With a <strong>${absPct}% cost reduction</strong>, the business remains cash positive — cash is growing.`;
+          txt.innerHTML = `With a <strong>${absPct}% cost reduction</strong>, the business remains cash generative — cash is growing faster.`;
         } else {
-          txt.innerHTML = `Even with a <strong>${absPct}% cost increase</strong>, the business remains cash positive.`;
+          txt.innerHTML = `Even with a <strong>${absPct}% cost increase</strong>, the business remains cash generative.`;
         }
       } else {
-        // ── Burning cash scenario ────────────────────────────────────────
-        burnEl.textContent = fmtDollar(monthlyBurn) + '/mo';
+        // ── Burning cash ─────────────────────────────────────────────────
+        const col = runwayColor(runway);
+
+        burnLbl.textContent = 'Monthly Cash Burn';
+        burnEl.textContent  = fmtDollar(monthlyBurn) + '/mo';
+        burnEl.style.color  = '#dc2626';
+        burnSub.textContent = 'Cash consumed each month';
+
         runEl.textContent  = fmtRunway(runway);
         runEl.className    = `rw-card-value ${col}`;
         runSub.textContent =
@@ -2468,7 +2489,7 @@
           txt.innerHTML = `Current trajectory — runway is <strong>${fmtRunway(runway)}</strong> (until ${endDate}).`;
         } else if (costChangePct > 0) {
           txt.innerHTML = `With <strong>${absPct}% cost increase</strong>, runway shortens to ` +
-            `<strong style="color:#dc2626">${fmtRunway(runway)}</strong> (until ${endDate}).`;
+            `<strong style="color:${RED}">${fmtRunway(runway)}</strong> (until ${endDate}).`;
         } else {
           txt.innerHTML = `With <strong>${absPct}% cost reduction</strong>, runway extends to ` +
             `<strong style="color:#16a34a">${fmtRunway(runway)}</strong> (until ${endDate}).`;
@@ -2487,7 +2508,6 @@
         const v   = ((val - lo) / (hi - lo)) * 100;
         const a   = Math.min(z, v);
         const b   = Math.max(z, v);
-        // negative (left of centre) = teal (good), positive (right) = red (bad)
         const col = val <= 0 ? TEAL : RED;
         slider.style.background =
           `linear-gradient(to right,${GRAY} 0%,${GRAY} ${a}%,${col} ${a}%,${col} ${b}%,${GRAY} ${b}%,${GRAY} 100%)`;
