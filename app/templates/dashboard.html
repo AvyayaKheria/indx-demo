@@ -2810,6 +2810,11 @@
 </html>`;
     }
 
+    function showError(msg) {
+      errEl.textContent    = '⚠ ' + msg;
+      errEl.style.display  = 'block';   // must be 'block', not '' — CSS has display:none
+    }
+
     // ── Click handler ────────────────────────────────────────────────────
     btn.addEventListener('click', function () {
       setLoading(true);
@@ -2820,30 +2825,27 @@
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({}),
       })
-      .then(r => r.json())
-      .then(data => {
+      .then(function (r) {
+        if (!r.ok) throw new Error('Server returned ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
         setLoading(false);
-        if (data.error) {
-          errEl.textContent   = '⚠ ' + data.error;
-          errEl.style.display = '';
-          return;
-        }
+        if (data.error) { showError(data.error); return; }
+
         // Open in new tab via Blob URL (avoids popup-blocker on document.write)
         const html = buildReportPage(data.report_html, data.generated_at, data.company);
         const blob = new Blob([html], { type: 'text/html' });
         const url  = URL.createObjectURL(blob);
         const tab  = window.open(url, '_blank');
         if (!tab) {
-          errEl.textContent   = '⚠ Pop-up blocked — please allow pop-ups for this site and try again.';
-          errEl.style.display = '';
+          showError('Pop-up blocked — please allow pop-ups for this site and try again.');
         }
-        // Revoke after a short delay so the tab has time to load it
-        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
       })
-      .catch(() => {
+      .catch(function (err) {
         setLoading(false);
-        errEl.textContent   = '⚠ Failed to generate report. Please try again.';
-        errEl.style.display = '';
+        showError('Failed to generate report (' + (err.message || 'network error') + '). Please try again.');
       });
     });
   })();

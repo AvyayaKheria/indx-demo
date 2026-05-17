@@ -848,7 +848,7 @@ def api_monthly_report(session_id):
     try:
         message = client.messages.create(
             model=model_id,
-            max_tokens=2000,
+            max_tokens=1500,
             system=_REPORT_SYSTEM,
             messages=[{
                 "role": "user",
