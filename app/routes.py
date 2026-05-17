@@ -6,7 +6,7 @@ import plotly
 import plotly.graph_objects as go
 import pandas as pd
 from pathlib import Path
-from flask import Blueprint, render_template, request, redirect, url_for, jsonify, send_from_directory, abort
+from flask import Blueprint, render_template, request, redirect, url_for, jsonify, send_from_directory, abort, send_file
 
 from .loader import (
     load_balance_sheet, load_costs, load_pl, load_revenue, load_trial_balance,
@@ -507,6 +507,60 @@ def api_insights(session_id):
         return jsonify({"insights": insights, "error": err})
     except Exception as e:
         return jsonify({"error": str(e), "insights": []}), 500
+
+
+@main.route("/export-pdf/<session_id>")
+def export_pdf(session_id):
+    if session_id == "demo":
+        data_dir = None
+    else:
+        session_dir = UPLOAD_DIR / session_id
+        if not session_dir.exists():
+            return redirect(url_for("main.index"))
+        data_dir = session_dir
+
+    try:
+        kpis, _, _ = _build_dashboard_data(data_dir)
+    except Exception as e:
+        return f"Could not load dashboard data: {e}", 500
+
+    # Load raw DataFrames for the tables (use AI-extracted JSON when available)
+    try:
+        if _has_extracted_json(data_dir):
+            from .loader import load_revenue_json, load_costs_json, load_pl_json, load_balance_sheet_json
+            rev_df  = load_revenue_json(data_dir)
+            cost_df = load_costs_json(data_dir)
+            pl      = load_pl_json(data_dir)
+            bs      = load_balance_sheet_json(data_dir)
+        else:
+            rev_df  = load_revenue(data_dir)
+            cost_df = load_costs(data_dir)
+            pl      = load_pl(data_dir)
+            bs      = load_balance_sheet(data_dir)
+    except Exception as e:
+        return f"Could not load financial data: {e}", 500
+
+    # AI bullets — use cache only (instant), never block on a fresh Claude call
+    ai_bullets = None
+    try:
+        from .insights import get_ai_bullets
+        ai_bullets, _ = get_ai_bullets(data_dir, kpis)
+    except Exception:
+        pass
+
+    # Build PDF
+    try:
+        from .pdf_export import build_cfo_pdf
+        buf = build_cfo_pdf(kpis, rev_df, cost_df, pl, bs, ai_bullets)
+    except Exception as e:
+        return f"PDF generation failed: {e}", 500
+
+    return send_file(
+        buf,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name="GrainCo_CFO_Report_FY2025.pdf",
+    )
 
 
 @main.route("/api/ai-insights/<session_id>")

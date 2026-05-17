@@ -162,6 +162,28 @@
     }
     .upload-new-link:hover { color: var(--teal); }
 
+    /* ── Export PDF button ─────────────────────────────────────────────── */
+    .export-pdf-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      background: var(--navy);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 12.5px;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background .15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .export-pdf-btn:hover { background: #0c1f38; color: white; }
+    .export-pdf-btn .pdf-icon { font-size: 13px; }
+
     /* ── Page layout ───────────────────────────────────────────────────── */
     .page {
       max-width: 1400px;
@@ -730,6 +752,10 @@
     </div>
     <div class="header-meta">
       <a href="/" class="upload-new-link">← Upload new files</a>
+      <a class="export-pdf-btn" href="/export-pdf/{{ session_id }}">
+        <span class="pdf-icon">↓</span>
+        <span>Export PDF</span>
+      </a>
       <button class="refresh-btn" id="refresh-btn" onclick="refreshDashboard()">
         <span class="refresh-icon">↻</span>
         <span class="refresh-label">Refresh Dashboard</span>
