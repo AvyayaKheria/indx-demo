@@ -1695,17 +1695,17 @@
       <!-- What-if cost-reduction slider -->
       <div class="rw-slider-section">
         <div class="rw-slider-label">
-          <strong>What-If: Cost Reduction</strong>
-          Simulate the impact of reducing total operating costs on your cash runway.
+          <strong>What-If: Cost Change</strong>
+          Model a cost increase (stress test) or reduction on your cash runway.
         </div>
         <div class="rw-slider-right">
           <div class="rw-slider-header">
             <span>Drag to simulate a cost reduction</span>
             <span class="rw-slider-val" id="rw-slider-val">0%</span>
           </div>
-          <input type="range" id="rw-slider" class="sc-range" min="0" max="50" step="1" value="0">
+          <input type="range" id="rw-slider" class="sc-range" min="-50" max="50" step="1" value="0">
           <div class="rw-result-text" id="rw-result-text">
-            Adjust the slider to model a cost-reduction scenario.
+            Drag left to stress-test a cost increase, right to model savings.
           </div>
         </div>
       </div>
@@ -2312,28 +2312,40 @@
     const NET_PROFIT = {{ kpis.net_profit }};
     const REVENUE    = {{ kpis.total_revenue }};
 
-    const NO_CASH_DATA  = 'NO_CASH_DATA';
-    const CASH_POSITIVE = 'CASH_POSITIVE';
-    const NORMAL        = 'NORMAL';
+    // ── Show/hide top-level states ────────────────────────────────────────
+    const noData    = document.getElementById('rw-no-data');
+    const posBanner = document.getElementById('rw-cash-pos-banner');
+    const main      = document.getElementById('rw-main');
 
-    function adjNetProfit(costReductionPct) {
+    if (!CASH) {
+      // No cash data in balance sheet — show placeholder, nothing else
+      noData.style.display = '';
+      return;
+    }
+    // Always show main panel so the slider is always accessible
+    main.style.display = '';
+
+    // Show the cash-positive info banner only when the BASE case (slider=0) is profitable
+    if (NET_PROFIT >= 0) {
+      posBanner.style.display = '';
+      document.getElementById('rw-cash-pos-amount').textContent = fmtDollar(CASH);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────
+    function adjNetProfit(costChangePct) {
+      // costChangePct: negative = cost increase (stress), positive = cost reduction (savings)
       const totalCosts = REVENUE - NET_PROFIT;
-      const adjCosts   = totalCosts * (1 - costReductionPct / 100);
+      const adjCosts   = totalCosts * (1 - costChangePct / 100);
       return REVENUE - adjCosts;
     }
 
-    function getState(costReductionPct) {
-      if (!CASH) return NO_CASH_DATA;
-      if (adjNetProfit(costReductionPct) >= 0) return CASH_POSITIVE;
-      return NORMAL;
-    }
-
-    function calcRunway(costReductionPct) {
-      const np          = adjNetProfit(costReductionPct);
-      const monthlyBurn = Math.abs(np) / 12;
+    function calcRunway(costChangePct) {
+      const np          = adjNetProfit(costChangePct);
+      const monthlyBurn = np < 0 ? Math.abs(np) / 12 : 0;
       return {
+        np:          np,
         monthlyBurn: monthlyBurn,
-        runway: monthlyBurn > 0 ? CASH / monthlyBurn : Infinity,
+        runway:      monthlyBurn > 0 ? CASH / monthlyBurn : Infinity,
       };
     }
 
@@ -2375,79 +2387,86 @@
       const endLbl = document.getElementById('rw-end-label');
       const pct    = barPct(months);
       const col    = runwayColor(months);
-      fill.style.width       = pct + '%';
-      fill.className         = `rw-fill ${col}`;
-      dot.style.left         = pct + '%';
-      dot.style.display      = 'block';
-      endLbl.textContent     = endDateLabel(months);
+      fill.style.width   = pct + '%';
+      fill.className     = `rw-fill ${col}`;
+      dot.style.left     = pct + '%';
+      dot.style.display  = 'block';
+      endLbl.textContent = endDateLabel(months);
     }
 
-    function updateCards(monthlyBurn, runway) {
+    function render(costChangePct) {
+      const { np, monthlyBurn, runway } = calcRunway(costChangePct);
       const cashEl  = document.getElementById('rw-cash-val');
       const burnEl  = document.getElementById('rw-burn-val');
       const runEl   = document.getElementById('rw-runway-val');
       const runSub  = document.getElementById('rw-runway-sub');
+      const txt     = document.getElementById('rw-result-text');
       const col     = runwayColor(runway);
-      cashEl.textContent  = fmtDollar(CASH);
-      burnEl.textContent  = fmtDollar(monthlyBurn) + '/mo';
-      runEl.textContent   = fmtRunway(runway);
-      runEl.className     = `rw-card-value ${col}`;
-      runSub.textContent  =
-        runway < 3  ? '⚠ Critical — immediate action needed' :
-        runway < 6  ? '⚠ Low — fundraise or cut costs soon'  :
-        runway < 12 ? 'Moderate — plan for next raise'        :
-                      'Healthy runway';
-    }
 
-    function render(costReductionPct) {
-      const noData    = document.getElementById('rw-no-data');
-      const posBanner = document.getElementById('rw-cash-pos-banner');
-      const main      = document.getElementById('rw-main');
-      const state     = getState(costReductionPct);
+      cashEl.textContent = fmtDollar(CASH);
 
-      noData.style.display    = state === NO_CASH_DATA  ? '' : 'none';
-      posBanner.style.display = state === CASH_POSITIVE ? '' : 'none';
-      main.style.display      = state === NORMAL        ? '' : 'none';
-
-      if (state === NO_CASH_DATA) return;
-
-      if (state === CASH_POSITIVE) {
-        document.getElementById('rw-cash-pos-amount').textContent = fmtDollar(CASH);
-        return;
-      }
-
-      // NORMAL state
-      const { monthlyBurn, runway } = calcRunway(costReductionPct);
-      updateCards(monthlyBurn, runway);
-      updateBar(runway);
-
-      // Result text
-      const txt = document.getElementById('rw-result-text');
-      if (costReductionPct === 0) {
-        txt.innerHTML = 'Adjust the slider to model a cost-reduction scenario.';
+      if (np >= 0) {
+        // Scenario is cash-positive
+        burnEl.textContent  = '$0/mo';
+        runEl.textContent   = 'Cash Positive ✓';
+        runEl.className     = 'rw-card-value rw-green';
+        runSub.textContent  = 'Generating cash at this cost level';
+        updateBar(Infinity);
+        txt.innerHTML = costChangePct === 0
+          ? 'The business is currently <strong>cash positive</strong>. Drag left to stress-test cost increases.'
+          : costChangePct > 0
+            ? `At a <strong>${costChangePct}% cost reduction</strong> the business remains cash positive — cash is growing.`
+            : `Even with a <strong>${Math.abs(costChangePct)}% cost increase</strong> the business remains cash positive.`;
       } else {
-        const baseRunway = calcRunway(0).runway;
-        const delta      = runway - baseRunway;
-        const sign       = delta >= 0 ? '+' : '';
-        txt.innerHTML = `A <strong>${costReductionPct}% cost reduction</strong> extends runway by ` +
-          `<strong>${sign}${delta.toFixed(1)} months</strong> ` +
-          `(from ${fmtRunway(baseRunway)} → ${fmtRunway(runway)}).`;
+        // Scenario is burning cash
+        burnEl.textContent  = fmtDollar(monthlyBurn) + '/mo';
+        runEl.textContent   = fmtRunway(runway);
+        runEl.className     = `rw-card-value ${col}`;
+        runSub.textContent  =
+          runway < 3  ? '⚠ Critical — immediate action needed' :
+          runway < 6  ? '⚠ Low — fundraise or cut costs soon'  :
+          runway < 12 ? 'Moderate — plan for next raise'        :
+                        'Healthy runway';
+        updateBar(runway);
+
+        if (costChangePct === 0) {
+          txt.innerHTML = 'Drag right to model cost savings, or left to stress-test cost increases.';
+        } else {
+          const baseRunway = calcRunway(0).runway;
+          const delta      = runway - baseRunway;
+          const sign       = delta >= 0 ? '+' : '';
+          const direction  = costChangePct > 0
+            ? `A <strong>${costChangePct}% cost reduction</strong>`
+            : `A <strong>${Math.abs(costChangePct)}% cost increase</strong>`;
+          const verb = delta >= 0 ? 'extends' : 'cuts';
+          txt.innerHTML = `${direction} ${verb} runway by ` +
+            `<strong>${sign}${delta.toFixed(1)} months</strong> ` +
+            `(from ${fmtRunway(baseRunway)} → <strong>${fmtRunway(runway)}</strong>).`;
+        }
       }
     }
 
-    // Wire up what-if slider
+    // ── Wire up what-if slider (−50 = cost up 50%, +50 = cost down 50%) ──
     const slider = document.getElementById('rw-slider');
     const slVal  = document.getElementById('rw-slider-val');
     if (slider) {
-      const TEAL = '#0d9488', GRAY = '#e2e8f0';
+      const TEAL = '#0d9488', RED = '#dc2626', GRAY = '#e2e8f0';
       function refreshRwTrack() {
-        const pct = (parseFloat(slider.value) / 50) * 100;
+        const lo  = -50, hi = 50;
+        const val = parseFloat(slider.value);
+        const z   = ((0   - lo) / (hi - lo)) * 100;   // zero-point %
+        const v   = ((val - lo) / (hi - lo)) * 100;   // value %
+        const a   = Math.min(z, v);
+        const b   = Math.max(z, v);
+        const col = val < 0 ? RED : TEAL;
         slider.style.background =
-          `linear-gradient(to right,${TEAL} 0%,${TEAL} ${pct}%,${GRAY} ${pct}%,${GRAY} 100%)`;
+          `linear-gradient(to right,${GRAY} 0%,${GRAY} ${a}%,${col} ${a}%,${col} ${b}%,${GRAY} ${b}%,${GRAY} 100%)`;
       }
       slider.addEventListener('input', () => {
         const v = parseInt(slider.value);
-        slVal.textContent = v + '%';
+        const sign = v > 0 ? '+' : '';
+        slVal.textContent = `${sign}${v}%`;
+        slVal.style.color = v < 0 ? '#dc2626' : '#0d9488';
         refreshRwTrack();
         render(v);
       });
