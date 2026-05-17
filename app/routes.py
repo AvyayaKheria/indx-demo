@@ -516,13 +516,17 @@ def api_ai_insights(session_id):
     else:
         session_dir = UPLOAD_DIR / session_id
         if not session_dir.exists():
-            return jsonify({"bullets": None}), 404
+            return jsonify({"bullets": None, "error": "Session not found"})
         data_dir = session_dir
 
     try:
         kpis, _, _ = _build_dashboard_data(data_dir)
+    except Exception as e:
+        return jsonify({"bullets": None, "error": f"KPI load failed: {e}"})
+
+    try:
         from .insights import get_ai_bullets
-        bullets = get_ai_bullets(data_dir, kpis)
-        return jsonify({"bullets": bullets})
-    except Exception:
-        return jsonify({"bullets": None})
+        bullets, err = get_ai_bullets(data_dir, kpis)
+        return jsonify({"bullets": bullets, "error": err})
+    except Exception as e:
+        return jsonify({"bullets": None, "error": str(e)})

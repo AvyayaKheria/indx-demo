@@ -476,22 +476,30 @@ Debt to Equity: {debt_to_equity:.2f}x
 Return exactly 4 bullet points. Each bullet: one sentence, specific, references actual \
 numbers. No preamble, no conclusion. Just the 4 bullets."""
 
+# Models to try in order — stops at first success
+_MODELS = [
+    "claude-sonnet-4-20250514",
+    "claude-3-5-sonnet-20241022",
+    "claude-3-5-haiku-20241022",
+    "claude-3-haiku-20240307",
+]
 
-def generate_ai_bullets(kpis: dict) -> list[str] | None:
-    """
-    Call Claude and return a list of 4 bullet strings.
-    Returns None silently on any failure (section is hidden, no error shown).
-    """
-    global _demo_ai_cache
 
+def generate_ai_bullets(kpis: dict) -> tuple[list[str] | None, str | None]:
+    """
+    Call Claude and return (bullets, error).
+    bullets is a list of 4 strings on success, None on failure.
+    error is None on success, an error message string on failure.
+    Never swallows exceptions silently.
+    """
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
-        return None
+        return None, "ANTHROPIC_API_KEY not set"
 
     try:
         import anthropic
     except ImportError:
-        return None
+        return None, "anthropic package not installed — run: pip install anthropic"
 
     prompt = _AI_PROMPT.format(**{k: kpis.get(k, 0) for k in [
         "total_revenue", "gross_profit", "gross_margin",
@@ -499,58 +507,69 @@ def generate_ai_bullets(kpis: dict) -> list[str] | None:
         "total_assets", "total_equity", "current_ratio", "debt_to_equity",
     ]})
 
-    try:
-        client = anthropic.Anthropic(api_key=api_key)
-        resp   = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=512,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        raw = resp.content[0].text.strip()
+    client    = anthropic.Anthropic(api_key=api_key)
+    last_err  = "No models available"
 
-        # Parse — handle •  -  *  ·  1.  1)  etc.
-        bullets = []
-        for line in raw.split("\n"):
-            line = line.strip()
-            if not line:
-                continue
-            line = re.sub(r"^[•\-\*·]\s*", "", line)
-            line = re.sub(r"^\d+[\.\)]\s*", "", line)
-            if line:
-                bullets.append(line)
+    for model_id in _MODELS:
+        try:
+            resp = client.messages.create(
+                model=model_id,
+                max_tokens=512,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw = resp.content[0].text.strip()
 
-        return bullets[:4] if bullets else None
+            bullets = []
+            for line in raw.split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+                line = re.sub(r"^[•\-\*·]\s*", "", line)
+                line = re.sub(r"^\d+[\.\)]\s*", "", line)
+                if line:
+                    bullets.append(line)
 
-    except Exception:
-        return None
+            if not bullets:
+                return None, "Claude returned an empty response"
+
+            return bullets[:4], None
+
+        except Exception as exc:
+            last_err = str(exc)
+            # Only continue to next model on not_found (404)
+            if "not_found" not in last_err.lower():
+                return None, last_err
+
+    return None, last_err
 
 
-def get_ai_bullets(session_dir, kpis: dict) -> list[str] | None:
+def get_ai_bullets(session_dir, kpis: dict) -> tuple[list[str] | None, str | None]:
     """Return cached AI bullets if available, else generate and cache."""
     global _demo_ai_cache
 
-    # Demo path — use in-memory cache
+    # Demo — in-memory cache
     if session_dir is None:
         if _demo_ai_cache is not None:
-            return _demo_ai_cache
-        result = generate_ai_bullets(kpis)
-        _demo_ai_cache = result
-        return result
+            return _demo_ai_cache, None
+        bullets, err = generate_ai_bullets(kpis)
+        if bullets:
+            _demo_ai_cache = bullets
+        return bullets, err
 
-    # Session path — cache to ai_insights.json
+    # Session — file cache
     cache_path = Path(session_dir) / "ai_insights.json"
     if cache_path.exists():
         try:
-            return json.loads(cache_path.read_text())
+            return json.loads(cache_path.read_text()), None
         except Exception:
             pass
 
-    result = generate_ai_bullets(kpis)
+    bullets, err = generate_ai_bullets(kpis)
 
-    if result:
+    if bullets:
         try:
-            cache_path.write_text(json.dumps(result))
+            cache_path.write_text(json.dumps(bullets))
         except Exception:
             pass
 
-    return result
+    return bullets, err
