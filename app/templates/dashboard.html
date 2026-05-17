@@ -835,17 +835,11 @@
   </section>
 
   <!-- ── AI Financial Insights ───────────────────────────────────────────── -->
-  <section class="section" id="ai-insights-section">
+  <section class="section" id="ai-insights-section" style="display:none">
     <div class="ai-insights-card">
       <div class="ai-insights-header">
         <span class="ai-insights-title">AI Financial Insights</span>
         <span class="ai-badge">AI Insights</span>
-      </div>
-
-      <!-- Spinner shown while loading -->
-      <div class="ai-loading" id="ai-loading">
-        <div class="ai-spinner"></div>
-        <span>Generating insights…</span>
       </div>
 
       <!-- Bullets injected here -->
@@ -1136,7 +1130,6 @@
       .then(data => {
         const bullets = data.bullets;
         const section = document.getElementById('ai-insights-section');
-        const loading = document.getElementById('ai-loading');
         const list    = document.getElementById('ai-bullets');
 
         if (!bullets || bullets.length === 0) {
@@ -1144,7 +1137,7 @@
           return;
         }
 
-        loading.style.display = 'none';
+        section.style.display = '';
         list.style.display    = '';
         list.innerHTML = bullets.map(b => `<li>${b}</li>`).join('');
       })
