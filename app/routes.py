@@ -223,6 +223,34 @@ def _build_dashboard_data(data_dir=None):
     current_ratio  = round(current_assets / current_liabilities, 2) if current_liabilities else 0
     debt_to_equity = round(total_liabilities / total_equity, 2)    if total_equity         else 0
 
+    # ── Cash on Hand (for runway calculator) ─────────────────────────────────
+    cash = 0
+    for _bsk, _bsv in bs.items():
+        _kl = str(_bsk).strip().lower()
+        if any(p in _kl for p in ('cash & cash equiv', 'cash and cash equiv',
+                                   'cash at bank', 'cash on hand', 'cash balance')):
+            try:
+                cash = max(float(_bsv), 0); break
+            except (TypeError, ValueError):
+                pass
+    if not cash:
+        for _bsk, _bsv in bs.items():
+            if str(_bsk).strip().lower() == 'cash':
+                try:
+                    cash = max(float(_bsv), 0)
+                except (TypeError, ValueError):
+                    pass
+                break
+    if not cash:
+        for _bsk, _bsv in bs.items():
+            if 'cash' in str(_bsk).lower():
+                try:
+                    _f = float(_bsv)
+                    if _f > 0:
+                        cash = _f; break
+                except (TypeError, ValueError):
+                    pass
+
     kpis = dict(
         total_revenue=total_revenue, gross_profit=gross_profit, gross_margin=gross_margin,
         ebitda=ebitda, ebitda_margin=ebitda_margin,
@@ -230,6 +258,7 @@ def _build_dashboard_data(data_dir=None):
         current_ratio=current_ratio, debt_to_equity=debt_to_equity,
         total_assets=total_assets, total_equity=total_equity, total_liabilities=total_liabilities,
         current_assets=current_assets, current_liabilities=current_liabilities,
+        cash=cash,
     )
 
     months = rev_df["Month"].tolist()

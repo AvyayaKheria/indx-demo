@@ -1123,6 +1123,167 @@
     .sc-delta.neg     { color: var(--red); }
     .sc-delta.neutral { color: var(--slate-300); }
 
+    /* ── Cash Runway Calculator ────────────────────────────────────────── */
+    .rw-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .rw-card {
+      background: var(--white);
+      border: 1px solid var(--slate-200);
+      border-radius: 12px;
+      padding: 20px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .rw-card-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--slate-500);
+    }
+    .rw-card-value {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--navy);
+      line-height: 1.1;
+    }
+    .rw-card-value.rw-green { color: #16a34a; }
+    .rw-card-value.rw-amber { color: #d97706; }
+    .rw-card-value.rw-red   { color: #dc2626; }
+    .rw-card-sub {
+      font-size: 12px;
+      color: var(--slate-500);
+    }
+    .rw-bar-wrap { margin-bottom: 28px; }
+    .rw-bar-labels-top {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--slate-500);
+      margin-bottom: 6px;
+    }
+    .rw-track {
+      position: relative;
+      height: 18px;
+      background: #e2e8f0;
+      border-radius: 9px;
+      overflow: visible;
+    }
+    .rw-fill {
+      height: 100%;
+      border-radius: 9px;
+      transition: width .4s ease, background-color .4s ease;
+      min-width: 0;
+      max-width: 100%;
+    }
+    .rw-fill.rw-green { background: #16a34a; }
+    .rw-fill.rw-amber { background: #d97706; }
+    .rw-fill.rw-red   { background: #dc2626; }
+    .rw-end-dot {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 3px solid white;
+      box-shadow: 0 0 0 2px var(--navy);
+      background: var(--navy);
+      transition: left .4s ease;
+      display: none;
+    }
+    .rw-ticks {
+      position: relative;
+      height: 22px;
+      margin-top: 2px;
+    }
+    .rw-tick {
+      position: absolute;
+      transform: translateX(-50%);
+      font-size: 10px;
+      color: var(--slate-500);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+    .rw-tick-line {
+      width: 1px;
+      height: 5px;
+      background: var(--slate-300);
+    }
+    .rw-slider-section {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 20px;
+      align-items: center;
+      background: #f8fafc;
+      border: 1px solid var(--slate-200);
+      border-radius: 10px;
+      padding: 18px 22px;
+      margin-bottom: 8px;
+    }
+    .rw-slider-label {
+      font-size: 13px;
+      color: var(--slate-600);
+    }
+    .rw-slider-label strong {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--navy);
+      margin-bottom: 3px;
+    }
+    .rw-slider-right {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .rw-slider-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: var(--slate-500);
+    }
+    .rw-slider-val {
+      font-weight: 700;
+      font-size: 13px;
+      color: var(--teal);
+    }
+    .rw-result-text {
+      font-size: 13px;
+      color: var(--slate-600);
+      min-height: 18px;
+    }
+    .rw-result-text strong { color: var(--navy); }
+    .rw-cash-pos {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 10px;
+      padding: 14px 18px;
+      font-size: 13px;
+      color: #15803d;
+    }
+    .rw-cash-pos-icon { font-size: 22px; }
+    .rw-no-data {
+      background: #f8fafc;
+      border: 1px dashed var(--slate-300);
+      border-radius: 10px;
+      padding: 28px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--slate-500);
+    }
+
     /* ── Responsive ────────────────────────────────────────────────────── */
     @media (max-width: 1100px) {
       .kpi-grid { grid-template-columns: repeat(2, 1fr); }
@@ -1453,6 +1614,100 @@
           <span class="sc-delta neutral" id="sd-cr">—</span>
         </div>
 
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Cash Runway Analysis ──────────────────────────────────────────── -->
+  <section class="section" id="runway-section">
+    <div class="section-header">
+      <span class="section-title">Cash Runway Analysis</span>
+      <div class="section-line"></div>
+    </div>
+
+    <!-- No-data state -->
+    <div id="rw-no-data" class="rw-no-data" style="display:none">
+      No cash balance found in the uploaded balance sheet. Upload a balance sheet with a
+      "Cash &amp; Cash Equivalents" line to enable runway analysis.
+    </div>
+
+    <!-- Cash-positive banner -->
+    <div id="rw-cash-pos-banner" class="rw-cash-pos" style="display:none">
+      <span class="rw-cash-pos-icon">🟢</span>
+      <span>
+        <strong>Cash Positive</strong> — The business is currently profitable, so cash is
+        growing rather than being consumed.
+        Cash on hand:&nbsp;<strong id="rw-cash-pos-amount"></strong>
+      </span>
+    </div>
+
+    <!-- Main runway content -->
+    <div id="rw-main" style="display:none">
+      <!-- 3 metric cards -->
+      <div class="rw-cards">
+        <div class="rw-card">
+          <div class="rw-card-label">Cash on Hand</div>
+          <div class="rw-card-value" id="rw-cash-val">—</div>
+          <div class="rw-card-sub">From balance sheet</div>
+        </div>
+        <div class="rw-card">
+          <div class="rw-card-label">Monthly Burn Rate</div>
+          <div class="rw-card-value" id="rw-burn-val">—</div>
+          <div class="rw-card-sub">Net cash consumed / month</div>
+        </div>
+        <div class="rw-card">
+          <div class="rw-card-label">Runway</div>
+          <div class="rw-card-value" id="rw-runway-val">—</div>
+          <div class="rw-card-sub" id="rw-runway-sub">Estimated months of operation</div>
+        </div>
+      </div>
+
+      <!-- Visual runway bar -->
+      <div class="rw-bar-wrap">
+        <div class="rw-bar-labels-top">
+          <span>You are here</span>
+          <span id="rw-end-label">—</span>
+        </div>
+        <div class="rw-track">
+          <div class="rw-fill" id="rw-fill"></div>
+          <div class="rw-end-dot" id="rw-end-dot"></div>
+        </div>
+        <div class="rw-ticks">
+          <div class="rw-tick" style="left:12.5%">
+            <div class="rw-tick-line"></div>
+            <span>3m</span>
+          </div>
+          <div class="rw-tick" style="left:25%">
+            <div class="rw-tick-line"></div>
+            <span>6m</span>
+          </div>
+          <div class="rw-tick" style="left:50%">
+            <div class="rw-tick-line"></div>
+            <span>12m</span>
+          </div>
+          <div class="rw-tick" style="left:100%">
+            <div class="rw-tick-line"></div>
+            <span>24m+</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- What-if cost-reduction slider -->
+      <div class="rw-slider-section">
+        <div class="rw-slider-label">
+          <strong>What-If: Cost Reduction</strong>
+          Simulate the impact of reducing total operating costs on your cash runway.
+        </div>
+        <div class="rw-slider-right">
+          <div class="rw-slider-header">
+            <span>Drag to simulate a cost reduction</span>
+            <span class="rw-slider-val" id="rw-slider-val">0%</span>
+          </div>
+          <input type="range" id="rw-slider" class="sc-range" min="0" max="50" step="1" value="0">
+          <div class="rw-result-text" id="rw-result-text">
+            Adjust the slider to model a cost-reduction scenario.
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -2049,6 +2304,157 @@
 
     // Initial render (all deltas = 0, just ensures tracks are drawn)
     recalc();
+  })();
+
+  // ── Cash Runway Calculator ───────────────────────────────────────────────
+  (function () {
+    const CASH       = {{ kpis.cash | default(0) }};
+    const NET_PROFIT = {{ kpis.net_profit }};
+    const REVENUE    = {{ kpis.total_revenue }};
+
+    const NO_CASH_DATA  = 'NO_CASH_DATA';
+    const CASH_POSITIVE = 'CASH_POSITIVE';
+    const NORMAL        = 'NORMAL';
+
+    function adjNetProfit(costReductionPct) {
+      const totalCosts = REVENUE - NET_PROFIT;
+      const adjCosts   = totalCosts * (1 - costReductionPct / 100);
+      return REVENUE - adjCosts;
+    }
+
+    function getState(costReductionPct) {
+      if (!CASH) return NO_CASH_DATA;
+      if (adjNetProfit(costReductionPct) >= 0) return CASH_POSITIVE;
+      return NORMAL;
+    }
+
+    function calcRunway(costReductionPct) {
+      const np          = adjNetProfit(costReductionPct);
+      const monthlyBurn = Math.abs(np) / 12;
+      return {
+        monthlyBurn: monthlyBurn,
+        runway: monthlyBurn > 0 ? CASH / monthlyBurn : Infinity,
+      };
+    }
+
+    function fmtDollar(v) {
+      const s = v < 0 ? '-' : '';
+      const a = Math.abs(v);
+      if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(2)}M`;
+      if (a >= 1e3) return `${s}$${Math.round(a / 1e3).toLocaleString('en-US')}K`;
+      return `${s}$${Math.round(a).toLocaleString('en-US')}`;
+    }
+
+    function fmtRunway(months) {
+      if (!isFinite(months) || months > 24) return '24+ months';
+      if (months < 1) return '< 1 month';
+      return `${months.toFixed(1)} months`;
+    }
+
+    function runwayColor(months) {
+      if (!isFinite(months) || months > 12) return 'rw-green';
+      if (months >= 6) return 'rw-amber';
+      return 'rw-red';
+    }
+
+    function barPct(months) {
+      if (!isFinite(months) || months > 24) return 100;
+      return Math.min((months / 24) * 100, 100);
+    }
+
+    function endDateLabel(months) {
+      if (!isFinite(months) || months > 24) return 'Beyond 2 years';
+      const d = new Date();
+      d.setMonth(d.getMonth() + Math.round(months));
+      return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    }
+
+    function updateBar(months) {
+      const fill   = document.getElementById('rw-fill');
+      const dot    = document.getElementById('rw-end-dot');
+      const endLbl = document.getElementById('rw-end-label');
+      const pct    = barPct(months);
+      const col    = runwayColor(months);
+      fill.style.width       = pct + '%';
+      fill.className         = `rw-fill ${col}`;
+      dot.style.left         = pct + '%';
+      dot.style.display      = 'block';
+      endLbl.textContent     = endDateLabel(months);
+    }
+
+    function updateCards(monthlyBurn, runway) {
+      const cashEl  = document.getElementById('rw-cash-val');
+      const burnEl  = document.getElementById('rw-burn-val');
+      const runEl   = document.getElementById('rw-runway-val');
+      const runSub  = document.getElementById('rw-runway-sub');
+      const col     = runwayColor(runway);
+      cashEl.textContent  = fmtDollar(CASH);
+      burnEl.textContent  = fmtDollar(monthlyBurn) + '/mo';
+      runEl.textContent   = fmtRunway(runway);
+      runEl.className     = `rw-card-value ${col}`;
+      runSub.textContent  =
+        runway < 3  ? '⚠ Critical — immediate action needed' :
+        runway < 6  ? '⚠ Low — fundraise or cut costs soon'  :
+        runway < 12 ? 'Moderate — plan for next raise'        :
+                      'Healthy runway';
+    }
+
+    function render(costReductionPct) {
+      const noData    = document.getElementById('rw-no-data');
+      const posBanner = document.getElementById('rw-cash-pos-banner');
+      const main      = document.getElementById('rw-main');
+      const state     = getState(costReductionPct);
+
+      noData.style.display    = state === NO_CASH_DATA  ? '' : 'none';
+      posBanner.style.display = state === CASH_POSITIVE ? '' : 'none';
+      main.style.display      = state === NORMAL        ? '' : 'none';
+
+      if (state === NO_CASH_DATA) return;
+
+      if (state === CASH_POSITIVE) {
+        document.getElementById('rw-cash-pos-amount').textContent = fmtDollar(CASH);
+        return;
+      }
+
+      // NORMAL state
+      const { monthlyBurn, runway } = calcRunway(costReductionPct);
+      updateCards(monthlyBurn, runway);
+      updateBar(runway);
+
+      // Result text
+      const txt = document.getElementById('rw-result-text');
+      if (costReductionPct === 0) {
+        txt.innerHTML = 'Adjust the slider to model a cost-reduction scenario.';
+      } else {
+        const baseRunway = calcRunway(0).runway;
+        const delta      = runway - baseRunway;
+        const sign       = delta >= 0 ? '+' : '';
+        txt.innerHTML = `A <strong>${costReductionPct}% cost reduction</strong> extends runway by ` +
+          `<strong>${sign}${delta.toFixed(1)} months</strong> ` +
+          `(from ${fmtRunway(baseRunway)} → ${fmtRunway(runway)}).`;
+      }
+    }
+
+    // Wire up what-if slider
+    const slider = document.getElementById('rw-slider');
+    const slVal  = document.getElementById('rw-slider-val');
+    if (slider) {
+      const TEAL = '#0d9488', GRAY = '#e2e8f0';
+      function refreshRwTrack() {
+        const pct = (parseFloat(slider.value) / 50) * 100;
+        slider.style.background =
+          `linear-gradient(to right,${TEAL} 0%,${TEAL} ${pct}%,${GRAY} ${pct}%,${GRAY} 100%)`;
+      }
+      slider.addEventListener('input', () => {
+        const v = parseInt(slider.value);
+        slVal.textContent = v + '%';
+        refreshRwTrack();
+        render(v);
+      });
+      refreshRwTrack();
+    }
+
+    render(0);
   })();
 
   // ── AI Financial Insights ────────────────────────────────────────────────
