@@ -1262,6 +1262,28 @@
       min-height: 18px;
     }
     .rw-result-text strong { color: var(--navy); }
+    .rw-end-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10.5px;
+      color: var(--slate-400);
+      margin-top: 4px;
+    }
+    .rw-end-labels span:first-child { color: #0d9488; }
+    .rw-end-labels span:last-child  { color: #dc2626; }
+    .rw-critical {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #dc2626;
+      margin-top: 10px;
+    }
     .rw-cash-pos {
       display: flex;
       align-items: center;
@@ -1695,17 +1717,22 @@
       <!-- What-if cost-reduction slider -->
       <div class="rw-slider-section">
         <div class="rw-slider-label">
-          <strong>What-If: Cost Change</strong>
-          Model a cost increase (stress test) or reduction on your cash runway.
+          <strong>Monthly Cost Change</strong>
+          Drag left to cut costs (extends runway) or right to increase costs (stress test).
         </div>
         <div class="rw-slider-right">
           <div class="rw-slider-header">
-            <span>Drag to simulate a cost reduction</span>
+            <span>Monthly Cost Change</span>
             <span class="rw-slider-val" id="rw-slider-val">0%</span>
           </div>
           <input type="range" id="rw-slider" class="sc-range" min="-50" max="50" step="1" value="0">
-          <div class="rw-result-text" id="rw-result-text">
-            Drag left to stress-test a cost increase, right to model savings.
+          <div class="rw-end-labels">
+            <span>−50% (costs halved)</span>
+            <span>+50% (costs increased)</span>
+          </div>
+          <div class="rw-result-text" id="rw-result-text"></div>
+          <div class="rw-critical" id="rw-critical" style="display:none">
+            ⚠ Critical: Less than 3 months runway
           </div>
         </div>
       </div>
@@ -2312,30 +2339,28 @@
     const NET_PROFIT = {{ kpis.net_profit }};
     const REVENUE    = {{ kpis.total_revenue }};
 
+    const TEAL = '#0d9488', RED = '#dc2626', GRAY = '#e2e8f0';
+
     // ── Show/hide top-level states ────────────────────────────────────────
     const noData    = document.getElementById('rw-no-data');
     const posBanner = document.getElementById('rw-cash-pos-banner');
     const main      = document.getElementById('rw-main');
 
     if (!CASH) {
-      // No cash data in balance sheet — show placeholder, nothing else
       noData.style.display = '';
       return;
     }
-    // Always show main panel so the slider is always accessible
     main.style.display = '';
-
-    // Show the cash-positive info banner only when the BASE case (slider=0) is profitable
     if (NET_PROFIT >= 0) {
       posBanner.style.display = '';
       document.getElementById('rw-cash-pos-amount').textContent = fmtDollar(CASH);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
+    // costChangePct: POSITIVE = cost increase (bad), NEGATIVE = cost reduction (good)
     function adjNetProfit(costChangePct) {
-      // costChangePct: negative = cost increase (stress), positive = cost reduction (savings)
       const totalCosts = REVENUE - NET_PROFIT;
-      const adjCosts   = totalCosts * (1 - costChangePct / 100);
+      const adjCosts   = totalCosts * (1 + costChangePct / 100);
       return REVENUE - adjCosts;
     }
 
@@ -2343,9 +2368,9 @@
       const np          = adjNetProfit(costChangePct);
       const monthlyBurn = np < 0 ? Math.abs(np) / 12 : 0;
       return {
-        np:          np,
-        monthlyBurn: monthlyBurn,
-        runway:      monthlyBurn > 0 ? CASH / monthlyBurn : Infinity,
+        np,
+        monthlyBurn,
+        runway: monthlyBurn > 0 ? CASH / monthlyBurn : Infinity,
       };
     }
 
@@ -2396,77 +2421,82 @@
 
     function render(costChangePct) {
       const { np, monthlyBurn, runway } = calcRunway(costChangePct);
-      const cashEl  = document.getElementById('rw-cash-val');
-      const burnEl  = document.getElementById('rw-burn-val');
-      const runEl   = document.getElementById('rw-runway-val');
-      const runSub  = document.getElementById('rw-runway-sub');
-      const txt     = document.getElementById('rw-result-text');
-      const col     = runwayColor(runway);
+      const cashEl    = document.getElementById('rw-cash-val');
+      const burnEl    = document.getElementById('rw-burn-val');
+      const runEl     = document.getElementById('rw-runway-val');
+      const runSub    = document.getElementById('rw-runway-sub');
+      const txt       = document.getElementById('rw-result-text');
+      const critical  = document.getElementById('rw-critical');
+      const col       = runwayColor(runway);
+      const absPct    = Math.abs(costChangePct);
 
       cashEl.textContent = fmtDollar(CASH);
 
+      // ── Critical warning ───────────────────────────────────────────────
+      critical.style.display = (np < 0 && runway < 3) ? '' : 'none';
+
       if (np >= 0) {
-        // Scenario is cash-positive
-        burnEl.textContent  = '$0/mo';
-        runEl.textContent   = 'Cash Positive ✓';
-        runEl.className     = 'rw-card-value rw-green';
-        runSub.textContent  = 'Generating cash at this cost level';
+        // ── Cash-positive scenario ───────────────────────────────────────
+        burnEl.textContent = '$0/mo';
+        runEl.textContent  = 'Cash Positive ✓';
+        runEl.className    = 'rw-card-value rw-green';
+        runSub.textContent = 'Generating cash at this cost level';
         updateBar(Infinity);
-        txt.innerHTML = costChangePct === 0
-          ? 'The business is currently <strong>cash positive</strong>. Drag left to stress-test cost increases.'
-          : costChangePct > 0
-            ? `At a <strong>${costChangePct}% cost reduction</strong> the business remains cash positive — cash is growing.`
-            : `Even with a <strong>${Math.abs(costChangePct)}% cost increase</strong> the business remains cash positive.`;
+
+        if (costChangePct === 0) {
+          txt.innerHTML = 'The business is currently <strong>cash positive</strong>. Drag right to stress-test cost increases.';
+        } else if (costChangePct < 0) {
+          txt.innerHTML = `With a <strong>${absPct}% cost reduction</strong>, the business remains cash positive — cash is growing.`;
+        } else {
+          txt.innerHTML = `Even with a <strong>${absPct}% cost increase</strong>, the business remains cash positive.`;
+        }
       } else {
-        // Scenario is burning cash
-        burnEl.textContent  = fmtDollar(monthlyBurn) + '/mo';
-        runEl.textContent   = fmtRunway(runway);
-        runEl.className     = `rw-card-value ${col}`;
-        runSub.textContent  =
+        // ── Burning cash scenario ────────────────────────────────────────
+        burnEl.textContent = fmtDollar(monthlyBurn) + '/mo';
+        runEl.textContent  = fmtRunway(runway);
+        runEl.className    = `rw-card-value ${col}`;
+        runSub.textContent =
           runway < 3  ? '⚠ Critical — immediate action needed' :
           runway < 6  ? '⚠ Low — fundraise or cut costs soon'  :
           runway < 12 ? 'Moderate — plan for next raise'        :
                         'Healthy runway';
         updateBar(runway);
 
+        const endDate = endDateLabel(runway);
+
         if (costChangePct === 0) {
-          txt.innerHTML = 'Drag right to model cost savings, or left to stress-test cost increases.';
+          txt.innerHTML = `Current trajectory — runway is <strong>${fmtRunway(runway)}</strong> (until ${endDate}).`;
+        } else if (costChangePct > 0) {
+          txt.innerHTML = `With <strong>${absPct}% cost increase</strong>, runway shortens to ` +
+            `<strong style="color:#dc2626">${fmtRunway(runway)}</strong> (until ${endDate}).`;
         } else {
-          const baseRunway = calcRunway(0).runway;
-          const delta      = runway - baseRunway;
-          const sign       = delta >= 0 ? '+' : '';
-          const direction  = costChangePct > 0
-            ? `A <strong>${costChangePct}% cost reduction</strong>`
-            : `A <strong>${Math.abs(costChangePct)}% cost increase</strong>`;
-          const verb = delta >= 0 ? 'extends' : 'cuts';
-          txt.innerHTML = `${direction} ${verb} runway by ` +
-            `<strong>${sign}${delta.toFixed(1)} months</strong> ` +
-            `(from ${fmtRunway(baseRunway)} → <strong>${fmtRunway(runway)}</strong>).`;
+          txt.innerHTML = `With <strong>${absPct}% cost reduction</strong>, runway extends to ` +
+            `<strong style="color:#16a34a">${fmtRunway(runway)}</strong> (until ${endDate}).`;
         }
       }
     }
 
-    // ── Wire up what-if slider (−50 = cost up 50%, +50 = cost down 50%) ──
+    // ── Wire up slider: negative = cost down (teal), positive = cost up (red) ──
     const slider = document.getElementById('rw-slider');
     const slVal  = document.getElementById('rw-slider-val');
     if (slider) {
-      const TEAL = '#0d9488', RED = '#dc2626', GRAY = '#e2e8f0';
       function refreshRwTrack() {
         const lo  = -50, hi = 50;
         const val = parseFloat(slider.value);
-        const z   = ((0   - lo) / (hi - lo)) * 100;   // zero-point %
-        const v   = ((val - lo) / (hi - lo)) * 100;   // value %
+        const z   = ((0   - lo) / (hi - lo)) * 100;
+        const v   = ((val - lo) / (hi - lo)) * 100;
         const a   = Math.min(z, v);
         const b   = Math.max(z, v);
-        const col = val < 0 ? RED : TEAL;
+        // negative (left of centre) = teal (good), positive (right) = red (bad)
+        const col = val <= 0 ? TEAL : RED;
         slider.style.background =
           `linear-gradient(to right,${GRAY} 0%,${GRAY} ${a}%,${col} ${a}%,${col} ${b}%,${GRAY} ${b}%,${GRAY} 100%)`;
       }
       slider.addEventListener('input', () => {
-        const v = parseInt(slider.value);
+        const v    = parseInt(slider.value);
         const sign = v > 0 ? '+' : '';
         slVal.textContent = `${sign}${v}%`;
-        slVal.style.color = v < 0 ? '#dc2626' : '#0d9488';
+        slVal.style.color = v > 0 ? RED : TEAL;
         refreshRwTrack();
         render(v);
       });
