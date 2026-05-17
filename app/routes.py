@@ -779,6 +779,96 @@ def api_ask(session_id):
     )
 
 
+# ── System prompt for the monthly board report ───────────────────────────────
+_REPORT_SYSTEM = (
+    "You are a CFO writing a monthly financial report for the board of directors.\n\n"
+    "Output ONLY the report body as HTML — no <html>, <head>, or <body> tags, no markdown fences.\n\n"
+    "Use this exact structure for every section:\n"
+    "<div class=\"rpt-section\">\n"
+    "  <h2>Section Title</h2>\n"
+    "  <p>Content</p>\n"
+    "</div>\n\n"
+    "Required sections in this order:\n"
+    "1. Executive Summary — 2-3 sentences covering overall financial health and key highlights\n"
+    "2. Revenue Performance — analysis of revenue, channels, and trends; reference actual figures\n"
+    "3. Cost Analysis — breakdown of costs, efficiency, and any concerns\n"
+    "4. Profitability — gross profit, EBITDA, and net profit with margins\n"
+    "5. Balance Sheet Health — liquidity, solvency, current ratio, debt/equity\n"
+    "6. Cash Position — cash on hand, monthly burn rate or cash generation, runway\n"
+    "7. Key Risks — use <ul><li> for exactly 2-3 bullet points of financial risks\n"
+    "8. Recommended Actions — use <ul><li> for exactly 2-3 actionable bullet points\n\n"
+    "Rules:\n"
+    "- Be specific — reference actual numbers from the data provided\n"
+    "- Use professional CFO language suitable for a board audience\n"
+    "- Keep each narrative section to 3-4 sentences maximum\n"
+    "- Wrap all key numbers in <strong> tags\n"
+    "- Do not add any text outside the section divs"
+)
+
+
+@main.route("/api/monthly-report/<session_id>", methods=["POST"])
+def api_monthly_report(session_id):
+    from datetime import date as _date
+
+    if session_id == "demo":
+        data_dir = None
+    else:
+        session_dir = UPLOAD_DIR / session_id
+        if not session_dir.exists():
+            return jsonify({"error": "Session not found"}), 404
+        data_dir = session_dir
+
+    try:
+        kpis, _, cost_legend = _build_dashboard_data(data_dir)
+    except Exception as exc:
+        return jsonify({"error": f"Could not load data: {exc}"}), 500
+
+    context = _build_financial_context(data_dir, kpis, cost_legend)
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return jsonify({"error": "ANTHROPIC_API_KEY not configured"}), 503
+
+    try:
+        import anthropic
+    except ImportError:
+        return jsonify({"error": "anthropic package not installed"}), 503
+
+    client = anthropic.Anthropic(api_key=api_key)
+
+    try:
+        from .insights import _best_model
+        model_id, err = _best_model(client)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+    if not model_id:
+        return jsonify({"error": err}), 503
+
+    try:
+        message = client.messages.create(
+            model=model_id,
+            max_tokens=2000,
+            system=_REPORT_SYSTEM,
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"Financial data:\n\n{context}\n\n"
+                    "Generate the monthly board report now."
+                ),
+            }],
+        )
+        report_html = message.content[0].text
+    except Exception as exc:
+        return jsonify({"error": f"Claude error: {exc}"}), 500
+
+    return jsonify({
+        "report_html":  report_html,
+        "generated_at": _date.today().strftime("%B %Y"),
+        "company":      "Grain & Co.",
+    })
+
+
 @main.route("/api/ai-insights/<session_id>")
 def api_ai_insights(session_id):
     if session_id == "demo":

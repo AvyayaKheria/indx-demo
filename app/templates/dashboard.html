@@ -1306,6 +1306,68 @@
       color: var(--slate-500);
     }
 
+    /* ── Monthly Report ────────────────────────────────────────────────── */
+    .mr-subtitle {
+      font-size: 13px;
+      color: var(--slate-500);
+      margin: -4px 0 28px;
+      line-height: 1.55;
+    }
+    .mr-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--navy);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 14px 30px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: .01em;
+      transition: background .15s, opacity .15s, transform .1s;
+      box-shadow: 0 2px 8px rgba(15,30,60,.18);
+    }
+    .mr-btn:hover:not(:disabled) { background: #1b3d6e; transform: translateY(-1px); }
+    .mr-btn:active:not(:disabled){ transform: translateY(0); }
+    .mr-btn:disabled { opacity: .65; cursor: not-allowed; }
+    .mr-spinner {
+      width: 16px; height: 16px;
+      border: 2.5px solid rgba(255,255,255,.35);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: mrSpin .65s linear infinite;
+      display: none;
+      flex-shrink: 0;
+    }
+    .mr-btn.loading .mr-spinner { display: block; }
+    @keyframes mrSpin { to { transform: rotate(360deg); } }
+    .mr-status {
+      margin-top: 16px;
+      font-size: 13px;
+      color: var(--slate-500);
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+    .mr-status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--teal);
+      animation: mrPulse 1.2s ease-in-out infinite;
+    }
+    @keyframes mrPulse {
+      0%, 100% { opacity: .4; transform: scale(.9); }
+      50%       { opacity: 1;  transform: scale(1.15); }
+    }
+    .mr-error {
+      margin-top: 12px;
+      font-size: 13px;
+      color: var(--red);
+      display: none;
+    }
+
     /* ── Responsive ────────────────────────────────────────────────────── */
     @media (max-width: 1100px) {
       .kpi-grid { grid-template-columns: repeat(2, 1fr); }
@@ -1836,6 +1898,26 @@
       </div>
       {% endfor %}
     </div>
+  </section>
+
+  <!-- ── Monthly Report ────────────────────────────────────────────────────── -->
+  <section class="section" id="monthly-report-section">
+    <div class="section-header">
+      <span class="section-title">Monthly Report</span>
+      <div class="section-line"></div>
+    </div>
+    <p class="mr-subtitle">Generate a board-ready monthly report with one click</p>
+
+    <button class="mr-btn" id="mr-btn">
+      <div class="mr-spinner" id="mr-spinner"></div>
+      <span id="mr-btn-text">📄 &nbsp;Generate Monthly Report</span>
+    </button>
+
+    <div class="mr-status" id="mr-status">
+      <div class="mr-status-dot"></div>
+      <span>Claude is analysing your financials…</span>
+    </div>
+    <p class="mr-error" id="mr-error"></p>
   </section>
 
   <!-- ── Footer ───────────────────────────────────────────────────────────── -->
@@ -2548,6 +2630,222 @@
         analysing.style.display = 'none';
         unavail.style.display   = '';
       });
+  })();
+
+  // ── Monthly Report generator ─────────────────────────────────────────────
+  (function () {
+    const btn     = document.getElementById('mr-btn');
+    const spinner = document.getElementById('mr-spinner');
+    const btnTxt  = document.getElementById('mr-btn-text');
+    const status  = document.getElementById('mr-status');
+    const errEl   = document.getElementById('mr-error');
+
+    function setLoading(on) {
+      btn.disabled          = on;
+      btn.classList.toggle('loading', on);
+      btnTxt.textContent    = on ? 'Generating Report…' : '📄  Generate Monthly Report';
+      status.style.display  = on ? 'flex' : 'none';
+    }
+
+    // ── Build the standalone report page HTML ─────────────────────────────
+    function buildReportPage(bodyHtml, generatedAt, company) {
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${company} — CFO Monthly Report ${generatedAt}</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f8fafc;
+    color: #1e293b;
+    line-height: 1.65;
+    padding: 0 0 60px;
+  }
+  /* ── Top bar ── */
+  .rpt-topbar {
+    background: #0f1e3c;
+    color: white;
+    padding: 20px 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .rpt-brand { font-size: 20px; font-weight: 700; letter-spacing: .02em; }
+  .rpt-meta  { font-size: 13px; opacity: .75; margin-top: 3px; }
+  .rpt-print-btn {
+    background: #0d9488;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 22px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: .02em;
+  }
+  .rpt-print-btn:hover { background: #0f766e; }
+  /* ── Page body ── */
+  .rpt-page { max-width: 860px; margin: 0 auto; padding: 0 32px; }
+  /* ── Report header ── */
+  .rpt-header {
+    margin: 48px 0 36px;
+    border-bottom: 3px solid #0f1e3c;
+    padding-bottom: 20px;
+  }
+  .rpt-title {
+    font-size: 28px;
+    font-weight: 800;
+    color: #0f1e3c;
+    letter-spacing: -.01em;
+  }
+  .rpt-date {
+    font-size: 14px;
+    color: #64748b;
+    margin-top: 6px;
+  }
+  .rpt-confidential {
+    display: inline-block;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fde68a;
+    border-radius: 4px;
+    padding: 2px 8px;
+    margin-top: 10px;
+  }
+  /* ── Sections ── */
+  .rpt-section {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 24px 28px;
+    margin-bottom: 16px;
+  }
+  .rpt-section h2 {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: #0f1e3c;
+    border-left: 3px solid #0d9488;
+    padding-left: 10px;
+    margin-bottom: 12px;
+  }
+  .rpt-section p {
+    font-size: 14.5px;
+    color: #334155;
+    line-height: 1.7;
+  }
+  .rpt-section ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .rpt-section li {
+    font-size: 14.5px;
+    color: #334155;
+    line-height: 1.6;
+    padding-left: 20px;
+    position: relative;
+  }
+  .rpt-section li::before {
+    content: '▸';
+    position: absolute;
+    left: 0;
+    color: #0d9488;
+    font-size: 12px;
+    top: 3px;
+  }
+  .rpt-section strong { color: #0f1e3c; }
+  /* ── Footer ── */
+  .rpt-footer {
+    text-align: center;
+    font-size: 11.5px;
+    color: #94a3b8;
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid #e2e8f0;
+  }
+  /* ── Print ── */
+  @media print {
+    body { background: white; padding: 0; }
+    .rpt-topbar .rpt-print-btn { display: none; }
+    .rpt-section { break-inside: avoid; box-shadow: none; border: 1px solid #ddd; }
+    .rpt-page { padding: 0 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="rpt-topbar">
+  <div>
+    <div class="rpt-brand">${company}</div>
+    <div class="rpt-meta">CFO Monthly Report &middot; ${generatedAt}</div>
+  </div>
+  <button class="rpt-print-btn" onclick="window.print()">⬇&nbsp; Download / Print PDF</button>
+</div>
+
+<div class="rpt-page">
+  <div class="rpt-header">
+    <div class="rpt-title">Board Financial Report</div>
+    <div class="rpt-date">Period: ${generatedAt} &nbsp;·&nbsp; Prepared by CFO Intelligence</div>
+    <div class="rpt-confidential">Confidential</div>
+  </div>
+
+  ${bodyHtml}
+
+  <div class="rpt-footer">
+    Generated by CFO Intelligence &nbsp;·&nbsp; Confidential &nbsp;·&nbsp; ${company} &nbsp;·&nbsp; ${generatedAt}
+  </div>
+</div>
+</body>
+</html>`;
+    }
+
+    // ── Click handler ────────────────────────────────────────────────────
+    btn.addEventListener('click', function () {
+      setLoading(true);
+      errEl.style.display = 'none';
+
+      fetch('/api/monthly-report/' + SESSION_ID, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({}),
+      })
+      .then(r => r.json())
+      .then(data => {
+        setLoading(false);
+        if (data.error) {
+          errEl.textContent   = '⚠ ' + data.error;
+          errEl.style.display = '';
+          return;
+        }
+        // Open in new tab via Blob URL (avoids popup-blocker on document.write)
+        const html = buildReportPage(data.report_html, data.generated_at, data.company);
+        const blob = new Blob([html], { type: 'text/html' });
+        const url  = URL.createObjectURL(blob);
+        const tab  = window.open(url, '_blank');
+        if (!tab) {
+          errEl.textContent   = '⚠ Pop-up blocked — please allow pop-ups for this site and try again.';
+          errEl.style.display = '';
+        }
+        // Revoke after a short delay so the tab has time to load it
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      })
+      .catch(() => {
+        setLoading(false);
+        errEl.textContent   = '⚠ Failed to generate report. Please try again.';
+        errEl.style.display = '';
+      });
+    });
   })();
 </script>
 
