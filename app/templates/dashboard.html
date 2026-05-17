@@ -835,7 +835,7 @@
   </section>
 
   <!-- ── AI Financial Insights ───────────────────────────────────────────── -->
-  <section class="section" id="ai-insights-section" style="display:none">
+  <section class="section" id="ai-insights-section">
     <div class="ai-insights-card">
       <div class="ai-insights-header">
         <span class="ai-insights-title">AI Financial Insights</span>
@@ -1135,18 +1135,22 @@
       .then(r => r.json())
       .then(data => {
         const bullets = data.bullets;
-        if (!bullets || bullets.length === 0) return; // hide — no error shown
+        const section = document.getElementById('ai-insights-section');
+        const loading = document.getElementById('ai-loading');
+        const list    = document.getElementById('ai-bullets');
 
-        const section  = document.getElementById('ai-insights-section');
-        const loading  = document.getElementById('ai-loading');
-        const list     = document.getElementById('ai-bullets');
+        if (!bullets || bullets.length === 0) {
+          section.style.display = 'none'; // hide gracefully on failure
+          return;
+        }
 
-        section.style.display = '';
         loading.style.display = 'none';
         list.style.display    = '';
         list.innerHTML = bullets.map(b => `<li>${b}</li>`).join('');
       })
-      .catch(() => {}); // fail silently — section stays hidden
+      .catch(() => {
+        document.getElementById('ai-insights-section').style.display = 'none';
+      });
   }
 
   setTimeout(loadAiInsights, 0);
