@@ -928,17 +928,219 @@
       30%            { transform: translateY(-5px); opacity: 1; }
     }
 
+    /* ── Scenario Modelling ────────────────────────────────────────────── */
+    .sc-subtitle {
+      font-size: 13px;
+      color: var(--slate-500);
+      line-height: 1.55;
+      margin: -4px 0 22px;
+    }
+
+    .sc-grid {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    /* ── Sliders panel ─────────────────────────────────────────── */
+    .sc-sliders {
+      background: var(--white);
+      border: 1px solid var(--slate-200);
+      border-radius: var(--radius-lg);
+      padding: 20px 22px 22px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .sc-slider-row { display: flex; flex-direction: column; gap: 5px; }
+    .sc-slider-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .sc-slider-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--slate-700);
+    }
+    .sc-slider-val {
+      font-size: 12.5px;
+      font-weight: 600;
+      min-width: 44px;
+      text-align: right;
+      transition: color .12s;
+    }
+    .sc-slider-val.pos     { color: var(--green); }
+    .sc-slider-val.neg     { color: var(--red); }
+    .sc-slider-val.neutral { color: var(--slate-400); }
+
+    /* Custom range track */
+    .sc-range {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 4px;
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+      background: var(--slate-200); /* updated live by JS */
+    }
+    .sc-range::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: var(--teal);
+      cursor: pointer;
+      border: 2px solid white;
+      box-shadow: 0 1px 5px rgba(13,148,136,.40);
+      transition: transform .1s;
+    }
+    .sc-range::-webkit-slider-thumb:hover  { transform: scale(1.18); }
+    .sc-range::-moz-range-thumb {
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: var(--teal);
+      border: 2px solid white;
+      box-shadow: 0 1px 5px rgba(13,148,136,.40);
+      cursor: pointer;
+    }
+
+    .sc-range-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--slate-400);
+    }
+
+    .sc-reset {
+      margin-top: 2px;
+      padding: 9px;
+      background: var(--slate-50);
+      border: 1px solid var(--slate-200);
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--slate-600);
+      cursor: pointer;
+      text-align: center;
+      transition: border-color .15s, color .15s, background .15s;
+    }
+    .sc-reset:hover {
+      border-color: var(--teal);
+      color: var(--teal);
+      background: #f0fdfa;
+    }
+
+    /* ── Comparison table ──────────────────────────────────────── */
+    .sc-table-wrap {
+      background: var(--white);
+      border: 1px solid var(--slate-200);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .sc-table-head {
+      display: grid;
+      grid-template-columns: 1fr 100px 22px 108px 84px;
+      padding: 9px 16px;
+      background: var(--slate-50);
+      border-bottom: 1px solid var(--slate-200);
+      gap: 4px;
+    }
+    .sc-table-head span {
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      color: var(--slate-400);
+      text-align: right;
+    }
+    .sc-table-head span:first-child { text-align: left; }
+    .sc-table-head span:nth-child(3) { text-align: center; }
+
+    .sc-row {
+      display: grid;
+      grid-template-columns: 1fr 100px 22px 108px 84px;
+      padding: 9px 16px;
+      border-bottom: 1px solid var(--slate-100);
+      align-items: center;
+      gap: 4px;
+      transition: background .12s;
+    }
+    .sc-row:last-child { border-bottom: none; }
+    .sc-row:hover { background: var(--slate-50); }
+
+    .sc-row.sc-sub {
+      background: rgba(248,250,252,.6);
+    }
+    .sc-row.sc-sub:hover { background: var(--slate-100); }
+
+    .sc-row-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--slate-700);
+    }
+    .sc-row.sc-sub .sc-row-label {
+      font-size: 12px;
+      font-weight: 400;
+      color: var(--slate-400);
+      padding-left: 14px;
+    }
+
+    .sc-cur  {
+      font-size: 12.5px;
+      color: var(--slate-400);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .sc-arrow {
+      text-align: center;
+      color: var(--slate-300);
+      font-size: 11px;
+    }
+    .sc-new {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--navy);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      transition: color .15s;
+    }
+    .sc-delta {
+      font-size: 11.5px;
+      font-weight: 600;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      transition: color .15s;
+      white-space: nowrap;
+    }
+    .sc-delta.pos     { color: var(--green); }
+    .sc-delta.neg     { color: var(--red); }
+    .sc-delta.neutral { color: var(--slate-300); }
+
     /* ── Responsive ────────────────────────────────────────────────────── */
     @media (max-width: 1100px) {
       .kpi-grid { grid-template-columns: repeat(2, 1fr); }
     }
+    @media (max-width: 960px) {
+      .sc-grid { grid-template-columns: 1fr; }
+    }
     @media (max-width: 860px) {
       .chart-grid { grid-template-columns: 1fr; }
       .page { padding: 20px 16px 48px; }
+      .sc-table-head,
+      .sc-row { grid-template-columns: 1fr 80px 18px 90px 70px; }
     }
     @media (max-width: 560px) {
       .kpi-grid { grid-template-columns: 1fr 1fr; }
       .header-inner { padding: 0 16px; }
+      .sc-table-head,
+      .sc-row { grid-template-columns: 1fr 70px 16px 80px 62px; font-size: 11px; }
     }
   </style>
 </head>
@@ -1104,6 +1306,154 @@
       <div id="ai-unavailable" class="ai-unavailable" style="display:none">Insights unavailable</div>
 
       <div class="ai-disclaimer">Generated by Claude AI · For reference only</div>
+    </div>
+  </section>
+
+  <!-- ── Scenario Modelling ─────────────────────────────────────────────── -->
+  <section class="section" id="scenario-section">
+    <div class="section-header">
+      <span class="section-title">Scenario Modelling</span>
+      <div class="section-line"></div>
+    </div>
+
+    <p class="sc-subtitle">
+      Adjust the sliders to model different scenarios and see the impact on your financials in real time —
+      calculations happen instantly in your browser, no page reload needed.
+    </p>
+
+    <div class="sc-grid">
+
+      <!-- ── Sliders ───────────────────────────────────────────────────── -->
+      <div class="sc-sliders">
+
+        <div class="sc-slider-row">
+          <div class="sc-slider-header">
+            <span class="sc-slider-label">Revenue Growth</span>
+            <span class="sc-slider-val neutral" id="sv-revenue">0%</span>
+          </div>
+          <input type="range" class="sc-range" id="sl-revenue"
+                 min="-30" max="50" step="1" value="0">
+          <div class="sc-range-labels"><span>−30%</span><span>+50%</span></div>
+        </div>
+
+        <div class="sc-slider-row">
+          <div class="sc-slider-header">
+            <span class="sc-slider-label">Cost of Goods</span>
+            <span class="sc-slider-val neutral" id="sv-cogs">0%</span>
+          </div>
+          <input type="range" class="sc-range" id="sl-cogs"
+                 min="-20" max="30" step="1" value="0">
+          <div class="sc-range-labels"><span>−20%</span><span>+30%</span></div>
+        </div>
+
+        <div class="sc-slider-row">
+          <div class="sc-slider-header">
+            <span class="sc-slider-label">Payroll</span>
+            <span class="sc-slider-val neutral" id="sv-payroll">0%</span>
+          </div>
+          <input type="range" class="sc-range" id="sl-payroll"
+                 min="-20" max="30" step="1" value="0">
+          <div class="sc-range-labels"><span>−20%</span><span>+30%</span></div>
+        </div>
+
+        <div class="sc-slider-row">
+          <div class="sc-slider-header">
+            <span class="sc-slider-label">Marketing Spend</span>
+            <span class="sc-slider-val neutral" id="sv-marketing">0%</span>
+          </div>
+          <input type="range" class="sc-range" id="sl-marketing"
+                 min="-50" max="100" step="1" value="0">
+          <div class="sc-range-labels"><span>−50%</span><span>+100%</span></div>
+        </div>
+
+        <div class="sc-slider-row">
+          <div class="sc-slider-header">
+            <span class="sc-slider-label">Interest / Below-EBITDA</span>
+            <span class="sc-slider-val neutral" id="sv-interest">0%</span>
+          </div>
+          <input type="range" class="sc-range" id="sl-interest"
+                 min="-50" max="50" step="1" value="0">
+          <div class="sc-range-labels"><span>−50%</span><span>+50%</span></div>
+        </div>
+
+        <button class="sc-reset" id="sc-reset-btn">↺ Reset to Actuals</button>
+      </div>
+
+      <!-- ── Comparison table ──────────────────────────────────────────── -->
+      <div class="sc-table-wrap">
+        <div class="sc-table-head">
+          <span>KPI</span>
+          <span>Current</span>
+          <span></span>
+          <span>Scenario</span>
+          <span>Change</span>
+        </div>
+
+        <div class="sc-row" id="sc-revenue">
+          <span class="sc-row-label">Total Revenue</span>
+          <span class="sc-cur">${{ "{:,.0f}".format(kpis.total_revenue) }}</span>
+          <span class="sc-arrow">→</span>
+          <span class="sc-new" id="sn-revenue">${{ "{:,.0f}".format(kpis.total_revenue) }}</span>
+          <span class="sc-delta neutral" id="sd-revenue">—</span>
+        </div>
+
+        <div class="sc-row" id="sc-gp">
+          <span class="sc-row-label">Gross Profit</span>
+          <span class="sc-cur">${{ "{:,.0f}".format(kpis.gross_profit) }}</span>
+          <span class="sc-arrow">→</span>
+          <span class="sc-new" id="sn-gp">${{ "{:,.0f}".format(kpis.gross_profit) }}</span>
+          <span class="sc-delta neutral" id="sd-gp">—</span>
+        </div>
+
+        <div class="sc-row sc-sub">
+          <span class="sc-row-label">↳ GP Margin</span>
+          <span class="sc-cur">{{ kpis.gross_margin }}%</span>
+          <span class="sc-arrow">→</span>
+          <span class="sc-new" id="sn-gpm">{{ kpis.gross_margin }}%</span>
+          <span class="sc-delta neutral" id="sd-gpm">—</span>
+        </div>
+
+        <div class="sc-row" id="sc-ebitda">
+          <span class="sc-row-label">EBITDA</span>
+          <span class="sc-cur">${{ "{:,.0f}".format(kpis.ebitda) }}</span>
+          <span class="sc-arrow">→</span>
+          <span class="sc-new" id="sn-ebitda">${{ "{:,.0f}".format(kpis.ebitda) }}</span>
+          <span class="sc-delta neutral" id="sd-ebitda">—</span>
+        </div>
+
+        <div class="sc-row sc-sub">
+          <span class="sc-row-label">↳ EBITDA Margin</span>
+          <span class="sc-cur">{{ kpis.ebitda_margin }}%</span>
+          <span class="sc-arrow">→</span>
+          <span class="sc-new" id="sn-ebitdam">{{ kpis.ebitda_margin }}%</span>
+          <span class="sc-delta neutral" id="sd-ebitdam">—</span>
+        </div>
+
+        <div class="sc-row" id="sc-np">
+          <span class="sc-row-label">Net Profit</span>
+          <span class="sc-cur">${{ "{:,.0f}".format(kpis.net_profit) }}</span>
+          <span class="sc-arrow">→</span>
+          <span class="sc-new" id="sn-np">${{ "{:,.0f}".format(kpis.net_profit) }}</span>
+          <span class="sc-delta neutral" id="sd-np">—</span>
+        </div>
+
+        <div class="sc-row sc-sub">
+          <span class="sc-row-label">↳ Net Margin</span>
+          <span class="sc-cur">{{ kpis.net_margin }}%</span>
+          <span class="sc-arrow">→</span>
+          <span class="sc-new" id="sn-npm">{{ kpis.net_margin }}%</span>
+          <span class="sc-delta neutral" id="sd-npm">—</span>
+        </div>
+
+        <div class="sc-row">
+          <span class="sc-row-label">Current Ratio</span>
+          <span class="sc-cur">{{ kpis.current_ratio }}x</span>
+          <span class="sc-arrow">→</span>
+          <span class="sc-new" id="sn-cr">{{ kpis.current_ratio }}x</span>
+          <span class="sc-delta neutral" id="sd-cr">—</span>
+        </div>
+
+      </div>
     </div>
   </section>
 
@@ -1518,6 +1868,187 @@
       inputEl.value = el.textContent.trim();
       doAsk();
     };
+  })();
+
+  // ── Scenario Modelling ────────────────────────────────────────────────────
+  (function () {
+    // ── Base KPI values (server-rendered) ──────────────────────────────────
+    const B = {
+      revenue:   {{ kpis.total_revenue }},
+      gp:        {{ kpis.gross_profit }},
+      gpm:       {{ kpis.gross_margin }},
+      ebitda:    {{ kpis.ebitda }},
+      ebitdam:   {{ kpis.ebitda_margin }},
+      np:        {{ kpis.net_profit }},
+      npm:       {{ kpis.net_margin }},
+      cr:        {{ kpis.current_ratio }},
+      cur_assets: {{ kpis.current_assets | default(0) }},
+      cur_liab:   {{ kpis.current_liabilities | default(0) }},
+    };
+
+    // ── Derive cost components ──────────────────────────────────────────────
+    const CL = {{ cost_legend | tojson }};
+
+    function findCostKw(kw) {
+      const m = CL.find(c => c.label.toLowerCase().includes(kw));
+      return m ? m.value : 0;
+    }
+
+    // COGS = revenue − gross profit (authoritative from P&L)
+    const BASE_COGS    = B.revenue - B.gp;
+    // Payroll & Marketing from cost legend
+    const BASE_PAY     = findCostKw('payroll') || findCostKw('wage') || findCostKw('staff') || 0;
+    const BASE_MKT     = findCostKw('marketing') || findCostKw('advertis') || 0;
+    // Fixed opex = everything in opex that isn't payroll or marketing (e.g. rent)
+    const BASE_OPEX    = B.gp - B.ebitda;           // total operating expenses
+    const BASE_FIXED   = Math.max(0, BASE_OPEX - BASE_PAY - BASE_MKT);
+    // Below-EBITDA costs (D&A + interest + tax)
+    const BASE_BELOW   = B.ebitda - B.np;
+
+    // ── Slider track fill (teal between zero-point and current value) ───────
+    const TEAL = '#0d9488';
+    const GRAY = '#e2e8f0';
+
+    function trackCSS(input) {
+      const lo  = parseFloat(input.min);
+      const hi  = parseFloat(input.max);
+      const val = parseFloat(input.value);
+      const z   = ((0   - lo) / (hi - lo)) * 100;   // 0% position on track
+      const v   = ((val - lo) / (hi - lo)) * 100;   // value position
+      const a   = Math.min(z, v);
+      const b   = Math.max(z, v);
+      return `linear-gradient(to right,${GRAY} 0%,${GRAY} ${a}%,${TEAL} ${a}%,${TEAL} ${b}%,${GRAY} ${b}%,${GRAY} 100%)`;
+    }
+
+    function refreshTrack(input) {
+      input.style.background = trackCSS(input);
+    }
+
+    // ── Label colour ────────────────────────────────────────────────────────
+    function paintLabel(id, val, positiveIsBad) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const sign = val > 0 ? '+' : '';
+      el.textContent = `${sign}${val}%`;
+      if (val === 0)                               el.className = 'sc-slider-val neutral';
+      else if (( val > 0 && !positiveIsBad) ||
+               ( val < 0 &&  positiveIsBad))       el.className = 'sc-slider-val pos';
+      else                                          el.className = 'sc-slider-val neg';
+    }
+
+    // ── Number formatter ─────────────────────────────────────────────────────
+    function fmtDollar(v) {
+      const s  = v < 0 ? '-' : '';
+      const a  = Math.abs(v);
+      if (a >= 1e6)  return `${s}$${(a / 1e6).toFixed(2)}M`;
+      if (a >= 1e3)  return `${s}$${Math.round(a / 1e3).toLocaleString('en-US')}K`;
+      return `${s}$${Math.round(a).toLocaleString('en-US')}`;
+    }
+
+    // ── Row updater ─────────────────────────────────────────────────────────
+    function setRow(newId, deltaId, newVal, baseVal, fmt) {
+      const nEl = document.getElementById(newId);
+      const dEl = document.getElementById(deltaId);
+      if (!nEl || !dEl) return;
+
+      if      (fmt === '$')  nEl.textContent = fmtDollar(newVal);
+      else if (fmt === '%')  nEl.textContent = newVal.toFixed(1) + '%';
+      else if (fmt === 'x')  nEl.textContent = newVal.toFixed(2) + 'x';
+
+      const d   = newVal - baseVal;
+      const thr = fmt === '$' ? 0.5 : fmt === '%' ? 0.04 : 0.004;
+
+      if (Math.abs(d) < thr) {
+        dEl.textContent = '—';
+        dEl.className   = 'sc-delta neutral';
+        return;
+      }
+
+      const better = d > 0;          // higher is always better for these metrics
+      const arrow  = d > 0 ? '▲' : '▼';
+
+      if (fmt === '%') {
+        dEl.textContent = `${arrow} ${d > 0 ? '+' : ''}${d.toFixed(1)}pp`;
+      } else {
+        const pct = baseVal !== 0 ? (d / Math.abs(baseVal)) * 100 : 0;
+        dEl.textContent = `${arrow} ${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`;
+      }
+      dEl.className = `sc-delta ${better ? 'pos' : 'neg'}`;
+    }
+
+    // ── Main recalculation ───────────────────────────────────────────────────
+    function recalc() {
+      const rv  = parseFloat(document.getElementById('sl-revenue').value)  || 0;
+      const cv  = parseFloat(document.getElementById('sl-cogs').value)     || 0;
+      const pv  = parseFloat(document.getElementById('sl-payroll').value)  || 0;
+      const mv  = parseFloat(document.getElementById('sl-marketing').value)|| 0;
+      const iv  = parseFloat(document.getElementById('sl-interest').value) || 0;
+
+      const newRev  = B.revenue * (1 + rv  / 100);
+      const newCogs = BASE_COGS  * (1 + cv  / 100);
+      const newGP   = newRev - newCogs;
+      const newGPM  = newRev !== 0 ? newGP / newRev * 100 : 0;
+
+      const newPay  = BASE_PAY   * (1 + pv  / 100);
+      const newMkt  = BASE_MKT   * (1 + mv  / 100);
+      const newEB   = newGP - newPay - BASE_FIXED - newMkt;
+      const newEBM  = newRev !== 0 ? newEB / newRev * 100 : 0;
+
+      const newBelow = BASE_BELOW * (1 + iv  / 100);
+      const newNP    = newEB - newBelow;
+      const newNPM   = newRev !== 0 ? newNP / newRev * 100 : 0;
+
+      // Current ratio: 50% of profit change flows into current assets (cash)
+      const profitDelta = newNP - B.np;
+      const newCurAssets = B.cur_assets + profitDelta * 0.50;
+      const newCR = B.cur_liab > 0
+        ? newCurAssets / B.cur_liab
+        : B.cr + profitDelta * 0.5 / (B.revenue * 0.15 || 1);
+
+      setRow('sn-revenue', 'sd-revenue', newRev,  B.revenue, '$');
+      setRow('sn-gp',      'sd-gp',      newGP,   B.gp,      '$');
+      setRow('sn-gpm',     'sd-gpm',     newGPM,  B.gpm,     '%');
+      setRow('sn-ebitda',  'sd-ebitda',  newEB,   B.ebitda,  '$');
+      setRow('sn-ebitdam', 'sd-ebitdam', newEBM,  B.ebitdam, '%');
+      setRow('sn-np',      'sd-np',      newNP,   B.np,      '$');
+      setRow('sn-npm',     'sd-npm',     newNPM,  B.npm,     '%');
+      setRow('sn-cr',      'sd-cr',      newCR,   B.cr,      'x');
+    }
+
+    // ── Wire up sliders ──────────────────────────────────────────────────────
+    const SLIDERS = [
+      { id: 'sl-revenue',  lblId: 'sv-revenue',  posIsBad: false },
+      { id: 'sl-cogs',     lblId: 'sv-cogs',     posIsBad: true  },
+      { id: 'sl-payroll',  lblId: 'sv-payroll',  posIsBad: true  },
+      { id: 'sl-marketing',lblId: 'sv-marketing', posIsBad: true  },
+      { id: 'sl-interest', lblId: 'sv-interest', posIsBad: true  },
+    ];
+
+    SLIDERS.forEach(({ id, lblId, posIsBad }) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      refreshTrack(el);
+      el.addEventListener('input', () => {
+        refreshTrack(el);
+        paintLabel(lblId, parseInt(el.value), posIsBad);
+        recalc();
+      });
+    });
+
+    // ── Reset button ─────────────────────────────────────────────────────────
+    document.getElementById('sc-reset-btn').addEventListener('click', () => {
+      SLIDERS.forEach(({ id, lblId }) => {
+        const el = document.getElementById(id);
+        el.value = 0;
+        refreshTrack(el);
+        document.getElementById(lblId).textContent = '0%';
+        document.getElementById(lblId).className   = 'sc-slider-val neutral';
+      });
+      recalc();
+    });
+
+    // Initial render (all deltas = 0, just ensures tracks are drawn)
+    recalc();
   })();
 
   // ── AI Financial Insights ────────────────────────────────────────────────

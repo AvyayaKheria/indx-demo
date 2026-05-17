@@ -229,6 +229,7 @@ def _build_dashboard_data(data_dir=None):
         net_profit=net_profit, net_margin=net_margin,
         current_ratio=current_ratio, debt_to_equity=debt_to_equity,
         total_assets=total_assets, total_equity=total_equity, total_liabilities=total_liabilities,
+        current_assets=current_assets, current_liabilities=current_liabilities,
     )
 
     months = rev_df["Month"].tolist()
