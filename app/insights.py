@@ -476,20 +476,33 @@ Debt to Equity: {debt_to_equity:.2f}x
 Return exactly 4 bullet points. Each bullet: one sentence, specific, references actual \
 numbers. No preamble, no conclusion. Just the 4 bullets."""
 
-# Models to try in order — stops at first success
-_MODELS = [
-    "claude-sonnet-4-20250514",
-    "claude-3-5-sonnet-20241022",
-    "claude-3-5-haiku-20241022",
-    "claude-3-haiku-20240307",
-]
+def _best_model(client) -> tuple[str | None, str | None]:
+    """
+    Use models.list() to find the best model this account can actually access.
+    Returns (model_id, error).
+    Prefers sonnet > haiku > opus by name match.
+    """
+    try:
+        available = [m.id for m in client.models.list().data]
+    except Exception as e:
+        return None, f"models.list() failed: {e}"
+
+    if not available:
+        return None, "No models returned by models.list()"
+
+    # Preference order by substring match
+    for pref in ("sonnet-4", "opus-4", "sonnet", "haiku", "claude"):
+        for m in available:
+            if pref in m.lower():
+                return m, None
+
+    return available[0], None   # fallback: whatever is first
 
 
 def generate_ai_bullets(kpis: dict) -> tuple[list[str] | None, str | None]:
     """
     Call Claude and return (bullets, error).
-    bullets is a list of 4 strings on success, None on failure.
-    error is None on success, an error message string on failure.
+    Uses models.list() to discover the correct model for this account.
     Never swallows exceptions silently.
     """
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
@@ -499,7 +512,7 @@ def generate_ai_bullets(kpis: dict) -> tuple[list[str] | None, str | None]:
     try:
         import anthropic
     except ImportError:
-        return None, "anthropic package not installed — run: pip install anthropic"
+        return None, "anthropic package not installed"
 
     prompt = _AI_PROMPT.format(**{k: kpis.get(k, 0) for k in [
         "total_revenue", "gross_profit", "gross_margin",
@@ -507,40 +520,37 @@ def generate_ai_bullets(kpis: dict) -> tuple[list[str] | None, str | None]:
         "total_assets", "total_equity", "current_ratio", "debt_to_equity",
     ]})
 
-    client    = anthropic.Anthropic(api_key=api_key)
-    last_err  = "No models available"
+    client = anthropic.Anthropic(api_key=api_key)
 
-    for model_id in _MODELS:
-        try:
-            resp = client.messages.create(
-                model=model_id,
-                max_tokens=512,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            raw = resp.content[0].text.strip()
+    model_id, err = _best_model(client)
+    if not model_id:
+        return None, err
 
-            bullets = []
-            for line in raw.split("\n"):
-                line = line.strip()
-                if not line:
-                    continue
-                line = re.sub(r"^[•\-\*·]\s*", "", line)
-                line = re.sub(r"^\d+[\.\)]\s*", "", line)
-                if line:
-                    bullets.append(line)
+    try:
+        resp = client.messages.create(
+            model=model_id,
+            max_tokens=512,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = resp.content[0].text.strip()
 
-            if not bullets:
-                return None, "Claude returned an empty response"
+        bullets = []
+        for line in raw.split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            line = re.sub(r"^[•\-\*·]\s*", "", line)
+            line = re.sub(r"^\d+[\.\)]\s*", "", line)
+            if line:
+                bullets.append(line)
 
-            return bullets[:4], None
+        if not bullets:
+            return None, f"Claude ({model_id}) returned an empty response"
 
-        except Exception as exc:
-            last_err = str(exc)
-            # Only continue to next model on not_found (404)
-            if "not_found" not in last_err.lower():
-                return None, last_err
+        return bullets[:4], None
 
-    return None, last_err
+    except Exception as exc:
+        return None, f"Claude call failed ({model_id}): {exc}"
 
 
 def get_ai_bullets(session_dir, kpis: dict) -> tuple[list[str] | None, str | None]:
