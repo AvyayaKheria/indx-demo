@@ -1160,6 +1160,31 @@ def api_ask(session_id):
 
 
 # ── System prompt for the monthly board report ───────────────────────────────
+_ANOMALY_SYSTEM = (
+    "You are a financial analyst detecting anomalies and red flags in company financials.\n\n"
+    "Analyse the provided data and return a JSON array of anomaly objects. Each object must have:\n"
+    "- \"severity\": exactly one of \"High\", \"Medium\", or \"Low\"\n"
+    "- \"description\": one concise sentence with specific dollar amounts and context, "
+    "e.g. 'December COGS of $73K is 2.1× the monthly average of $35K — review recommended'\n\n"
+    "Check for these anomaly types:\n"
+    "1. COST SPIKES: any month where a cost category exceeds 150% of its 12-month average "
+    "(High if >200%, Medium if 150–200%)\n"
+    "2. REVENUE DROPS: any month where total revenue falls more than 15% from the prior month "
+    "(High if >30% drop, Medium if 15–30%)\n"
+    "3. KPI HEALTH: current ratio <1.0 = High, 1.0–1.5 = Medium; gross margin <20% = High, "
+    "20–40% = Medium; debt/equity >2.0 = High, 1.5–2.0 = Medium; negative net margin = High\n"
+    "4. BALANCE SHEET: negative equity = High; total liabilities >2× total assets = High; "
+    "current liabilities >80% of current assets = Medium\n\n"
+    "Rules:\n"
+    "- Return ONLY a valid JSON array — no markdown, no explanation, no code fences\n"
+    "- If no anomalies exist, return an empty array: []\n"
+    "- Keep descriptions concise and always include specific numbers\n"
+    "- Sort by severity: High first, then Medium, then Low\n"
+    "- Maximum 8 anomalies total\n"
+    "- Do not flag the same issue twice"
+)
+
+
 _REPORT_SYSTEM = (
     "You are a CFO writing a monthly financial report for the board of directors.\n\n"
     "Output ONLY the report body as HTML — no <html>, <head>, or <body> tags, no markdown fences.\n\n"
@@ -1275,3 +1300,69 @@ def api_ai_insights(session_id):
         return jsonify({"bullets": bullets, "error": err})
     except Exception as e:
         return jsonify({"bullets": None, "error": str(e)})
+
+
+@main.route("/api/anomalies/<session_id>")
+def api_anomalies(session_id):
+    if session_id == "demo":
+        data_dir = None
+    else:
+        session_dir = UPLOAD_DIR / session_id
+        if not session_dir.exists():
+            return jsonify({"anomalies": [], "error": "Session not found"}), 404
+        data_dir = session_dir
+
+    try:
+        kpis, _, cost_legend = _build_dashboard_data(data_dir)
+    except Exception as exc:
+        return jsonify({"anomalies": [], "error": f"Could not load data: {exc}"}), 500
+
+    context = _build_financial_context(data_dir, kpis, cost_legend)
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return jsonify({"anomalies": [], "error": "ANTHROPIC_API_KEY not configured"}), 503
+
+    try:
+        import anthropic
+    except ImportError:
+        return jsonify({"anomalies": [], "error": "anthropic package not installed"}), 503
+
+    client = anthropic.Anthropic(api_key=api_key)
+
+    try:
+        from .insights import _best_model
+        model_id, err = _best_model(client)
+    except Exception as exc:
+        return jsonify({"anomalies": [], "error": str(exc)}), 500
+
+    if not model_id:
+        return jsonify({"anomalies": [], "error": err}), 503
+
+    try:
+        import json as _json
+        message = client.messages.create(
+            model=model_id,
+            max_tokens=900,
+            system=_ANOMALY_SYSTEM,
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"Financial data:\n\n{context}\n\n"
+                    "Detect all anomalies and return the JSON array now."
+                ),
+            }],
+        )
+        raw = message.content[0].text.strip()
+        # Strip accidental markdown fences
+        if raw.startswith("```"):
+            raw = raw[raw.index("["):]
+        if raw.endswith("```"):
+            raw = raw[: raw.rindex("]") + 1]
+        anomalies = _json.loads(raw)
+        if not isinstance(anomalies, list):
+            anomalies = []
+    except Exception as exc:
+        return jsonify({"anomalies": [], "error": f"Claude error: {exc}"}), 500
+
+    return jsonify({"anomalies": anomalies, "error": None})
