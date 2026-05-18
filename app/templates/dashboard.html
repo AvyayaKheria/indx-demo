@@ -1368,6 +1368,81 @@
       display: none;
     }
 
+    /* ── Compare toggle ────────────────────────────────────────────────── */
+    .compare-toggle {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      background: var(--slate-100);
+      border: 1px solid var(--slate-200);
+      border-radius: 8px;
+      padding: 3px;
+    }
+    .ct-btn {
+      padding: 5px 14px;
+      border: none;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      background: transparent;
+      color: var(--slate-500);
+      transition: background .15s, color .15s;
+      white-space: nowrap;
+    }
+    .ct-btn.active {
+      background: white;
+      color: var(--navy);
+      box-shadow: 0 1px 3px rgba(0,0,0,.08);
+      font-weight: 600;
+    }
+
+    /* ── KPI YoY comparison row ─────────────────────────────────────────── */
+    .kpi-compare {
+      display: none;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--slate-100);
+      flex-direction: column;
+      gap: 3px;
+    }
+    body.compare-mode .kpi-compare { display: flex; }
+    .kpi-yoy {
+      font-size: 12.5px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .kpi-yoy.yoy-good { color: var(--green); }
+    .kpi-yoy.yoy-bad  { color: var(--red); }
+    .kpi-yoy.yoy-flat { color: var(--slate-400); }
+    .kpi-py-val {
+      font-size: 11px;
+      color: var(--slate-400);
+    }
+
+    /* ── Chart compare/single visibility ────────────────────────────────── */
+    .compare-only { display: none !important; }
+    .single-only  { display: block !important; }
+    body.compare-mode .compare-only { display: block !important; }
+    body.compare-mode .single-only  { display: none  !important; }
+
+    /* ── P&L comparison cards ───────────────────────────────────────────── */
+    .pl-compare-row {
+      display: none;
+      margin-top: 6px;
+      font-size: 11.5px;
+      color: var(--slate-400);
+      gap: 6px;
+      align-items: center;
+    }
+    body.compare-mode .pl-compare-row { display: flex; }
+    .pl-compare-arrow { font-weight: 700; }
+    .pl-compare-arrow.good { color: var(--green); }
+    .pl-compare-arrow.bad  { color: var(--red); }
+
     /* ── Responsive ────────────────────────────────────────────────────── */
     @media (max-width: 1100px) {
       .kpi-grid { grid-template-columns: repeat(2, 1fr); }
@@ -1411,6 +1486,12 @@
         <span class="refresh-icon">↻</span>
         <span class="refresh-label">Refresh Dashboard</span>
       </button>
+      {% if has_prior_year %}
+      <div class="compare-toggle" id="compare-toggle">
+        <button class="ct-btn active" id="ct-single" onclick="setCompareMode(false)">Single Year</button>
+        <button class="ct-btn"        id="ct-compare" onclick="setCompareMode(true)">Compare Years</button>
+      </div>
+      {% endif %}
       <div class="header-meta-text">
         <div class="header-meta-title">CFO Dashboard</div>
         <div class="header-meta-date">Full Year FY2025 &mdash; 1 Jan &ndash; 31 Dec 2025</div>
@@ -1463,6 +1544,13 @@
         <div class="kpi-sub">
           <span class="kpi-context">FY2025 full year</span>
         </div>
+        {% if has_prior_year %}{% set cmp = kpi_compare.get('total_revenue', {}) %}
+        <div class="kpi-compare">
+          <span class="kpi-yoy {{ 'yoy-good' if cmp.is_good else 'yoy-bad' }}">
+            {{ '▲' if cmp.is_up else '▼' }}&nbsp;{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% vs FY2024
+          </span>
+          <span class="kpi-py-val">FY2024: ${{ "{:,.0f}".format(cmp.py) }}</span>
+        </div>{% endif %}
       </div>
 
       <div class="kpi-card">
@@ -1472,6 +1560,13 @@
           <span class="kpi-badge pos" data-kpi-key="gross_margin" data-kpi-fmt="pct_margin">{{ kpis.gross_margin }}% margin</span>
           <span class="kpi-context">after F&amp;B costs</span>
         </div>
+        {% if has_prior_year %}{% set cmp = kpi_compare.get('gross_profit', {}) %}
+        <div class="kpi-compare">
+          <span class="kpi-yoy {{ 'yoy-good' if cmp.is_good else 'yoy-bad' }}">
+            {{ '▲' if cmp.is_up else '▼' }}&nbsp;{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% vs FY2024
+          </span>
+          <span class="kpi-py-val">FY2024: ${{ "{:,.0f}".format(cmp.py) }} · {{ kpis_py.gross_margin }}% margin</span>
+        </div>{% endif %}
       </div>
 
       <div class="kpi-card">
@@ -1481,6 +1576,13 @@
           <span class="kpi-badge {{ 'neg' if kpis.ebitda_margin < 0 else 'pos' }}" data-kpi-key="ebitda_margin" data-kpi-fmt="pct_margin">{{ kpis.ebitda_margin }}% margin</span>
           <span class="kpi-context">before D&amp;A</span>
         </div>
+        {% if has_prior_year %}{% set cmp = kpi_compare.get('ebitda', {}) %}
+        <div class="kpi-compare">
+          <span class="kpi-yoy {{ 'yoy-good' if cmp.is_good else 'yoy-bad' }}">
+            {{ '▲' if cmp.is_up else '▼' }}&nbsp;{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% vs FY2024
+          </span>
+          <span class="kpi-py-val">FY2024: ${{ "{:,.0f}".format(cmp.py) }} · {{ kpis_py.ebitda_margin }}% margin</span>
+        </div>{% endif %}
       </div>
 
       <div class="kpi-card">
@@ -1490,6 +1592,13 @@
           <span class="kpi-badge {{ 'neg' if kpis.net_margin < 0 else 'pos' }}" data-kpi-key="net_margin" data-kpi-fmt="pct_margin">{{ kpis.net_margin }}% margin</span>
           <span class="kpi-context">after tax</span>
         </div>
+        {% if has_prior_year %}{% set cmp = kpi_compare.get('net_profit', {}) %}
+        <div class="kpi-compare">
+          <span class="kpi-yoy {{ 'yoy-good' if cmp.is_good else 'yoy-bad' }}">
+            {{ '▲' if cmp.is_up else '▼' }}&nbsp;{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% vs FY2024
+          </span>
+          <span class="kpi-py-val">FY2024: ${{ "{:,.0f}".format(cmp.py) }} · {{ kpis_py.net_margin }}% margin</span>
+        </div>{% endif %}
       </div>
 
       <div class="kpi-card">
@@ -1498,6 +1607,13 @@
         <div class="kpi-sub">
           <span class="kpi-context">as at 31 Dec 2025</span>
         </div>
+        {% if has_prior_year %}{% set cmp = kpi_compare.get('total_assets', {}) %}
+        <div class="kpi-compare">
+          <span class="kpi-yoy {{ 'yoy-good' if cmp.is_good else 'yoy-bad' }}">
+            {{ '▲' if cmp.is_up else '▼' }}&nbsp;{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% vs FY2024
+          </span>
+          <span class="kpi-py-val">FY2024: ${{ "{:,.0f}".format(cmp.py) }}</span>
+        </div>{% endif %}
       </div>
 
       <div class="kpi-card">
@@ -1506,6 +1622,13 @@
         <div class="kpi-sub">
           <span class="kpi-context">shareholders&rsquo; equity</span>
         </div>
+        {% if has_prior_year %}{% set cmp = kpi_compare.get('total_equity', {}) %}
+        <div class="kpi-compare">
+          <span class="kpi-yoy {{ 'yoy-good' if cmp.is_good else 'yoy-bad' }}">
+            {{ '▲' if cmp.is_up else '▼' }}&nbsp;{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% vs FY2024
+          </span>
+          <span class="kpi-py-val">FY2024: ${{ "{:,.0f}".format(cmp.py) }}</span>
+        </div>{% endif %}
       </div>
 
       <div class="kpi-card">
@@ -1517,6 +1640,13 @@
           </span>
           <span class="kpi-context">current assets / liabilities</span>
         </div>
+        {% if has_prior_year %}{% set cmp = kpi_compare.get('current_ratio', {}) %}
+        <div class="kpi-compare">
+          <span class="kpi-yoy {{ 'yoy-good' if cmp.is_good else 'yoy-bad' }}">
+            {{ '▲' if cmp.is_up else '▼' }}&nbsp;{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% vs FY2024
+          </span>
+          <span class="kpi-py-val">FY2024: {{ kpis_py.current_ratio }}x</span>
+        </div>{% endif %}
       </div>
 
       <div class="kpi-card">
@@ -1528,6 +1658,13 @@
           </span>
           <span class="kpi-context">total liabilities / equity</span>
         </div>
+        {% if has_prior_year %}{% set cmp = kpi_compare.get('debt_to_equity', {}) %}
+        <div class="kpi-compare">
+          <span class="kpi-yoy {{ 'yoy-good' if cmp.is_good else 'yoy-bad' }}">
+            {{ '▲' if cmp.is_up else '▼' }}&nbsp;{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% vs FY2024
+          </span>
+          <span class="kpi-py-val">FY2024: {{ kpis_py.debt_to_equity }}x</span>
+        </div>{% endif %}
       </div>
 
     </div>
@@ -1809,10 +1946,12 @@
     </div>
     <div class="chart-grid">
       <div class="chart-card">
-        <div class="chart-plot" id="chart-revenue"></div>
+        <div class="chart-plot single-only" id="chart-revenue"></div>
+      {% if has_prior_year %}<div class="chart-plot compare-only" id="chart-revenue-cmp"></div>{% endif %}
       </div>
       <div class="chart-card">
-        <div class="chart-plot" id="chart-rvc"></div>
+        <div class="chart-plot single-only" id="chart-rvc"></div>
+        {% if has_prior_year %}<div class="chart-plot compare-only" id="chart-rvc-cmp"></div>{% endif %}
       </div>
     </div>
   </section>
@@ -1830,22 +1969,38 @@
         <div class="pl-mini-label">Gross Profit</div>
         <div class="pl-mini-value pos" data-kpi-key="gross_profit" data-kpi-fmt="dollars">${{ "{:,.0f}".format(kpis.gross_profit) }}</div>
         <div class="pl-mini-sub" data-kpi-key="gross_margin" data-kpi-fmt="pct_of_rev">{{ kpis.gross_margin }}% of Revenue</div>
+        {% if has_prior_year %}{% set cmp = kpi_compare.get('gross_profit', {}) %}
+        <div class="pl-compare-row">
+          <span class="pl-compare-arrow {{ 'good' if cmp.is_good else 'bad' }}">{{ '▲' if cmp.is_up else '▼' }}</span>
+          <span>{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% · FY2024: ${{ "{:,.0f}".format(cmp.py) }}</span>
+        </div>{% endif %}
       </div>
       <div class="pl-mini-card">
         <div class="pl-mini-label">EBITDA</div>
         <div class="pl-mini-value {{ 'neg' if kpis.ebitda < 0 else 'pos' }}" data-kpi-key="ebitda" data-kpi-fmt="dollars">${{ "{:,.0f}".format(kpis.ebitda) }}</div>
         <div class="pl-mini-sub" data-kpi-key="ebitda_margin" data-kpi-fmt="pct_of_rev">{{ kpis.ebitda_margin }}% of Revenue</div>
+        {% if has_prior_year %}{% set cmp = kpi_compare.get('ebitda', {}) %}
+        <div class="pl-compare-row">
+          <span class="pl-compare-arrow {{ 'good' if cmp.is_good else 'bad' }}">{{ '▲' if cmp.is_up else '▼' }}</span>
+          <span>{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% · FY2024: ${{ "{:,.0f}".format(cmp.py) }}</span>
+        </div>{% endif %}
       </div>
       <div class="pl-mini-card">
         <div class="pl-mini-label">Net Profit</div>
         <div class="pl-mini-value {{ 'neg' if kpis.net_profit < 0 else 'pos' }}" data-kpi-key="net_profit" data-kpi-fmt="dollars">${{ "{:,.0f}".format(kpis.net_profit) }}</div>
         <div class="pl-mini-sub" data-kpi-key="net_margin" data-kpi-fmt="pct_of_rev">{{ kpis.net_margin }}% of Revenue</div>
+        {% if has_prior_year %}{% set cmp = kpi_compare.get('net_profit', {}) %}
+        <div class="pl-compare-row">
+          <span class="pl-compare-arrow {{ 'good' if cmp.is_good else 'bad' }}">{{ '▲' if cmp.is_up else '▼' }}</span>
+          <span>{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% · FY2024: ${{ "{:,.0f}".format(cmp.py) }}</span>
+        </div>{% endif %}
       </div>
     </div>
 
     <!-- Full-width Cost Mix donut -->
     <div class="chart-card">
-      <div class="chart-plot tall" id="chart-cost-mix"></div>
+      <div class="chart-plot tall single-only" id="chart-cost-mix"></div>
+      {% if has_prior_year %}<div class="chart-plot tall compare-only" id="chart-cost-mix-cmp"></div>{% endif %}
       <div class="donut-legend">
         {% for item in cost_legend %}
         <div class="donut-legend-item">
@@ -1867,7 +2022,8 @@
     </div>
     <div class="chart-grid">
       <div class="chart-card">
-        <div class="chart-plot" id="chart-bs"></div>
+        <div class="chart-plot single-only" id="chart-bs"></div>
+        {% if has_prior_year %}<div class="chart-plot compare-only" id="chart-bs-cmp"></div>{% endif %}
       </div>
       <div class="chart-card">
         <div class="chart-plot" id="chart-capital"></div>
@@ -1946,6 +2102,30 @@
   Plotly.newPlot('chart-cost-mix', {{ charts.cost_mix | safe }},      {}, cfg);
   Plotly.newPlot('chart-bs',       {{ charts.balance_sheet | safe }}, {}, cfg);
   Plotly.newPlot('chart-capital',  {{ charts.capital | safe }},       {}, cfg);
+
+  {% if has_prior_year %}
+  Plotly.newPlot('chart-revenue-cmp',  {{ charts_compare.revenue | safe }},       {}, cfg);
+  Plotly.newPlot('chart-rvc-cmp',      {{ charts_compare.rev_cost | safe }},      {}, cfg);
+  Plotly.newPlot('chart-cost-mix-cmp', {{ charts_compare.cost_mix | safe }},      {}, cfg);
+  Plotly.newPlot('chart-bs-cmp',       {{ charts_compare.balance_sheet | safe }}, {}, cfg);
+  {% endif %}
+
+  // ── Compare mode toggle ───────────────────────────────────────────────────
+  {% if has_prior_year %}
+  function setCompareMode(on) {
+    if (on) {
+      document.body.classList.add('compare-mode');
+      document.getElementById('ct-single').classList.remove('active');
+      document.getElementById('ct-compare').classList.add('active');
+    } else {
+      document.body.classList.remove('compare-mode');
+      document.getElementById('ct-single').classList.add('active');
+      document.getElementById('ct-compare').classList.remove('active');
+    }
+    // Trigger Plotly resize so charts fill their newly-visible containers
+    window.dispatchEvent(new Event('resize'));
+  }
+  {% endif %}
 
   // ── KPI formatter ─────────────────────────────────────────────────────────
   function fmtKpi(val, fmt) {

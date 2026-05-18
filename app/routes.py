@@ -37,6 +37,20 @@ FILE_SLOTS = [
      "Account, Debit, Credit"),
 ]
 
+# Prior-year upload slots — same structure, all optional
+FILE_SLOTS_PY = [
+    ("revenue_py",       "revenue.xlsx",       "Revenue (FY2024)",          5,
+     "Month, Dine-In, Delivery, Catering, Total"),
+    ("costs_py",         "costs.xlsx",         "Costs (FY2024)",            6,
+     "Month, COGS, Payroll, Rent, Marketing, Total"),
+    ("pl_py",            "pl.xlsx",            "P&L Statement (FY2024)",    2,
+     "Item, Amount"),
+    ("balance_sheet_py", "balance_sheet.xlsx", "Balance Sheet (FY2024)",    2,
+     "Item, Amount"),
+    ("trial_balance_py", "trial_balance.xlsx", "Trial Balance (FY2024)",    3,
+     "Account, Debit, Credit"),
+]
+
 # ── Design tokens ─────────────────────────────────────────────────────────────
 NAVY   = "#0f2744"
 TEAL   = "#0d9488"
@@ -50,6 +64,9 @@ BORDER = "#e2e8f0"
 
 # Extended palette for dynamic channel/category colours
 PALETTE = [NAVY, TEAL, TEAL2, TEAL3, "#2563eb", "#7c3aed", "#db2777", "#f59e0b"]
+
+NAVY_LIGHT = "#6b8cc9"   # prior-year bar / line colour
+RED_LIGHT  = "#f87171"   # prior-year cost line colour
 
 _FONT   = dict(family="Inter, system-ui, -apple-system, sans-serif", size=12, color="#475569")
 _HOVER  = dict(
@@ -161,6 +178,7 @@ def _has_extracted_json(data_dir) -> bool:
 # Key: str(data_dir) or "__demo__".  Value: (kpis, charts, cost_legend).
 # Session data is immutable after upload so a simple dict is safe.
 _DASH_CACHE: dict = {}
+_PY_CACHE:   dict = {}   # key: str(data_dir) → (kpis_py, charts_compare, cost_legend_py)
 
 
 def _cache_key(data_dir) -> str:
@@ -440,11 +458,284 @@ def _build_dashboard_data(data_dir=None):
     return kpis, charts, cost_legend
 
 
+# ── Demo prior-year generator ─────────────────────────────────────────────────
+
+def _generate_demo_prior_year(rev_df_cy, cost_df_cy, pl_cy, bs_cy):
+    """Return (rev_df_py, cost_df_py, pl_py, bs_py) as synthetic FY2024 data."""
+    # Revenue: 82 % of FY2025
+    rev_df_py = rev_df_cy.copy()
+    for col in [c for c in rev_df_py.columns if c != "Month"]:
+        rev_df_py[col] = (rev_df_py[col] * 0.82).round(0).astype(int)
+
+    # Costs: per-category ratios
+    cost_df_py = cost_df_cy.copy()
+    _COST_RATIOS = {
+        ('cogs', 'cost of good', 'cost of sale'): 0.84,
+        ('payroll', 'wage', 'staff', 'salary', 'labour', 'labor'): 0.91,
+        ('rent', 'lease', 'occupancy'): 1.00,
+        ('marketing', 'advertis', 'promo'): 0.88,
+    }
+    for col in [c for c in cost_df_py.columns if c != "Month"]:
+        cl = col.lower()
+        ratio = 0.87   # default
+        for keys, r in _COST_RATIOS.items():
+            if any(k in cl for k in keys):
+                ratio = r
+                break
+        cost_df_py[col] = (cost_df_py[col] * ratio).round(0).astype(int)
+
+    # P&L: 82 %
+    pl_py = {}
+    for k, v in pl_cy.items():
+        try:
+            pl_py[k] = round(float(v) * 0.82, 0)
+        except (TypeError, ValueError):
+            pl_py[k] = v
+
+    # Balance sheet: 85 %
+    bs_py = {}
+    for k, v in bs_cy.items():
+        try:
+            bs_py[k] = round(float(v) * 0.85, 0)
+        except (TypeError, ValueError):
+            bs_py[k] = v
+
+    return rev_df_py, cost_df_py, pl_py, bs_py
+
+
+# ── Prior-year data builder ───────────────────────────────────────────────────
+
+def _build_prior_year_data(data_dir, prior_year_dir):
+    """
+    Load or generate FY2024 data and build comparison charts.
+    Returns (kpis_py dict, charts_compare dict, cost_legend_py list).
+    Result is cached in _PY_CACHE.
+    """
+    ck = _cache_key(data_dir)
+    if ck in _PY_CACHE:
+        return _PY_CACHE[ck]
+
+    # ── Load current-year raw data ────────────────────────────────────────
+    if _has_extracted_json(data_dir):
+        rev_df_cy  = load_revenue_json(data_dir)
+        cost_df_cy = load_costs_json(data_dir)
+        pl_cy      = load_pl_json(data_dir)
+        bs_cy      = load_balance_sheet_json(data_dir)
+    else:
+        rev_df_cy  = load_revenue(data_dir)
+        cost_df_cy = load_costs(data_dir)
+        pl_cy      = load_pl(data_dir)
+        bs_cy      = load_balance_sheet(data_dir)
+
+    # Reconcile current-year revenue (same logic as _build_dashboard_data)
+    pl_rev_cy = pl_cy.get("Total Revenue") or 0
+    raw_cy    = rev_df_cy["Total"].sum()
+    if raw_cy > 0 and pl_rev_cy > 0:
+        s = pl_rev_cy / raw_cy
+        for col in [c for c in rev_df_cy.columns if c != "Month"]:
+            rev_df_cy[col] = (rev_df_cy[col] * s).round(0).astype(int)
+
+    # ── Load or generate prior-year raw data ─────────────────────────────
+    if prior_year_dir and Path(prior_year_dir).exists():
+        pyd = Path(prior_year_dir)
+        if _has_extracted_json(pyd):
+            rev_df_py  = load_revenue_json(pyd)
+            cost_df_py = load_costs_json(pyd)
+            pl_py      = load_pl_json(pyd)
+            bs_py      = load_balance_sheet_json(pyd)
+        else:
+            rev_df_py  = load_revenue(pyd)
+            cost_df_py = load_costs(pyd)
+            pl_py      = load_pl(pyd)
+            bs_py      = load_balance_sheet(pyd)
+    else:
+        rev_df_py, cost_df_py, pl_py, bs_py = _generate_demo_prior_year(
+            rev_df_cy, cost_df_cy, pl_cy, bs_cy
+        )
+
+    # Reconcile prior-year revenue
+    pl_rev_py = pl_py.get("Total Revenue") or 0
+    raw_py    = rev_df_py["Total"].sum()
+    if raw_py > 0 and pl_rev_py > 0:
+        s = pl_rev_py / raw_py
+        for col in [c for c in rev_df_py.columns if c != "Month"]:
+            rev_df_py[col] = (rev_df_py[col] * s).round(0).astype(int)
+
+    # ── Prior-year KPIs ───────────────────────────────────────────────────
+    total_revenue_py       = pl_py.get("Total Revenue",              0) or 0
+    gross_profit_py        = pl_py.get("Gross Profit",               0) or 0
+    ebitda_py              = pl_py.get("EBITDA",                     0) or 0
+    net_profit_py          = pl_py.get("Net Profit After Tax",       0) or 0
+    total_assets_py        = bs_py.get("TOTAL ASSETS",               0) or 0
+    total_equity_py        = bs_py.get("Total Equity",               0) or 0
+    current_assets_py      = bs_py.get("Total Current Assets",       0) or 0
+    current_liab_py        = bs_py.get("Total Current Liabilities",  0) or 0
+    non_curr_liab_py       = bs_py.get("Total Non-Current Liabilities", 0) or 0
+    non_curr_assets_py     = bs_py.get("Total Non-Current Assets",   0) or 0
+    total_liab_py          = current_liab_py + non_curr_liab_py
+
+    gross_margin_py   = round(gross_profit_py / total_revenue_py * 100, 1) if total_revenue_py else 0
+    net_margin_py     = round(net_profit_py   / total_revenue_py * 100, 1) if total_revenue_py else 0
+    ebitda_margin_py  = round(ebitda_py       / total_revenue_py * 100, 1) if total_revenue_py else 0
+    current_ratio_py  = round(current_assets_py / current_liab_py, 2) if current_liab_py else 0
+    debt_to_equity_py = round(total_liab_py / total_equity_py, 2) if total_equity_py else 0
+
+    kpis_py = dict(
+        total_revenue=total_revenue_py, gross_profit=gross_profit_py, gross_margin=gross_margin_py,
+        ebitda=ebitda_py, ebitda_margin=ebitda_margin_py,
+        net_profit=net_profit_py, net_margin=net_margin_py,
+        current_ratio=current_ratio_py, debt_to_equity=debt_to_equity_py,
+        total_assets=total_assets_py, total_equity=total_equity_py,
+        total_liabilities=total_liab_py,
+        current_assets=current_assets_py, current_liabilities=current_liab_py,
+    )
+
+    # ── Prior-year cost legend ────────────────────────────────────────────
+    cost_cat_cols_py = [c for c in cost_df_py.columns if c not in ("Month", "Total")]
+    cost_colors_py   = [PALETTE[i % len(PALETTE)] for i in range(len(cost_cat_cols_py))]
+    cost_vals_py     = [int(cost_df_py[c].sum()) for c in cost_cat_cols_py]
+    total_costs_py   = sum(cost_vals_py) or 1
+    cost_legend_py   = [
+        {"label": lbl, "value": val,
+         "pct": f"{val / total_costs_py * 100:.1f}%",
+         "color": col}
+        for lbl, val, col in zip(cost_cat_cols_py, cost_vals_py, cost_colors_py)
+    ]
+
+    # ── Comparison charts ─────────────────────────────────────────────────
+    months = rev_df_cy["Month"].tolist()
+
+    # Chart A: Revenue grouped bars (total per month, two bars)
+    fig_rev_cmp = go.Figure()
+    fig_rev_cmp.add_trace(go.Bar(
+        name="FY2025", x=months, y=rev_df_cy["Total"].tolist(),
+        marker_color=NAVY, marker_line_width=0,
+        hovertemplate="<b>%{x}</b><br>FY2025: $%{y:,.0f}<extra></extra>",
+    ))
+    fig_rev_cmp.add_trace(go.Bar(
+        name="FY2024", x=months, y=rev_df_py["Total"].tolist(),
+        marker_color=NAVY_LIGHT, marker_line_width=0,
+        hovertemplate="<b>%{x}</b><br>FY2024: $%{y:,.0f}<extra></extra>",
+    ))
+    fig_rev_cmp.update_layout(
+        **_layout("Monthly Revenue: FY2025 vs FY2024", y_title="Monthly Revenue ($)"),
+        barmode="group", bargap=0.2, bargroupgap=0.06,
+    )
+
+    # Chart B: Rev vs Costs — four lines
+    fig_rvc_cmp = go.Figure()
+    for y_vals, color, name, dash in [
+        (rev_df_cy["Total"].tolist(),  NAVY,       "FY2025 Revenue", "solid"),
+        (rev_df_py["Total"].tolist(),  NAVY_LIGHT, "FY2024 Revenue", "dash"),
+        (cost_df_cy["Total"].tolist(), RED,        "FY2025 Costs",   "solid"),
+        (cost_df_py["Total"].tolist(), RED_LIGHT,  "FY2024 Costs",   "dash"),
+    ]:
+        fig_rvc_cmp.add_trace(go.Scatter(
+            x=months, y=y_vals, name=name, mode="lines+markers",
+            line=dict(color=color, width=2.5, dash=dash),
+            marker=dict(size=6, color=color, line=dict(color="white", width=1.5)),
+            hovertemplate=f"<b>%{{x}}</b><br>{name}: $%{{y:,.0f}}<extra></extra>",
+        ))
+    fig_rvc_cmp.update_layout(**_layout("Revenue & Costs: FY2025 vs FY2024", y_title="Amount ($)"))
+
+    # Chart C: Balance Sheet grouped bars (Assets / Liabilities / Equity)
+    bs_labels   = ["Total Assets", "Total Liabilities", "Total Equity"]
+    bs_cy_vals  = [
+        bs_cy.get("TOTAL ASSETS", 0) or 0,
+        (bs_cy.get("Total Current Liabilities", 0) or 0) + (bs_cy.get("Total Non-Current Liabilities", 0) or 0),
+        bs_cy.get("Total Equity", 0) or 0,
+    ]
+    bs_py_vals_ = [total_assets_py, total_liab_py, total_equity_py]
+    bs_bar_colors = [TEAL, RED, GREEN]
+
+    fig_bs_cmp = go.Figure()
+    for cy_v, py_v, lbl, col in zip(bs_cy_vals, bs_py_vals_, bs_labels, bs_bar_colors):
+        fig_bs_cmp.add_trace(go.Bar(
+            name=f"FY2025 {lbl}", x=[lbl], y=[cy_v],
+            marker_color=col, marker_line_width=0,
+            text=[f"${cy_v:,.0f}"], textposition="outside",
+            textfont=dict(size=9), constraintext="none",
+            hovertemplate=f"<b>{lbl}</b><br>FY2025: $%{{y:,.0f}}<extra></extra>",
+            legendgroup=lbl, showlegend=True,
+        ))
+        fig_bs_cmp.add_trace(go.Bar(
+            name=f"FY2024 {lbl}", x=[lbl], y=[py_v],
+            marker_color=col, marker_line_width=0, opacity=0.45,
+            text=[f"${py_v:,.0f}"], textposition="outside",
+            textfont=dict(size=9), constraintext="none",
+            hovertemplate=f"<b>{lbl}</b><br>FY2024: $%{{y:,.0f}}<extra></extra>",
+            legendgroup=lbl, legendgrouptitle_text=lbl,
+        ))
+    fig_bs_cmp.update_layout(
+        **_layout("Balance Sheet: FY2025 vs FY2024", y_title="Amount ($)"),
+        barmode="group", bargap=0.3, bargroupgap=0.05,
+        showlegend=False,
+    )
+
+    # Chart D: Cost mix side-by-side donuts
+    cost_cat_cols_cy = [c for c in cost_df_cy.columns if c not in ("Month", "Total")]
+    cost_colors_cy   = [PALETTE[i % len(PALETTE)] for i in range(len(cost_cat_cols_cy))]
+    cost_vals_cy_    = [int(cost_df_cy[c].sum()) for c in cost_cat_cols_cy]
+
+    # Align prior-year columns to current-year so colours match
+    common_labels = cost_cat_cols_cy  # use CY labels as canonical
+    py_vals_aligned = []
+    for lbl in common_labels:
+        # find matching column in prior year (case-insensitive)
+        match = next((c for c in cost_cat_cols_py if c.lower() == lbl.lower()), None)
+        if match:
+            py_vals_aligned.append(int(cost_df_py[match].sum()))
+        else:
+            py_vals_aligned.append(0)
+
+    fig_cost_cmp = go.Figure()
+    fig_cost_cmp.add_trace(go.Pie(
+        labels=common_labels, values=cost_vals_cy_,
+        hole=0.45,
+        marker=dict(colors=cost_colors_cy, line=dict(color="white", width=2)),
+        textinfo="none",
+        domain=dict(x=[0, 0.46]),
+        name="FY2025",
+        title=dict(text="FY2025", font=dict(size=12, color=NAVY)),
+        hovertemplate="<b>%{label}</b><br>$%{value:,.0f} · %{percent}<extra></extra>",
+    ))
+    fig_cost_cmp.add_trace(go.Pie(
+        labels=common_labels, values=py_vals_aligned,
+        hole=0.45,
+        marker=dict(colors=cost_colors_cy, line=dict(color="white", width=2)),
+        textinfo="none",
+        domain=dict(x=[0.54, 1.0]),
+        name="FY2024",
+        title=dict(text="FY2024", font=dict(size=12, color=NAVY_LIGHT)),
+        hovertemplate="<b>%{label}</b><br>$%{value:,.0f} · %{percent}<extra></extra>",
+    ))
+    fig_cost_cmp.update_layout(
+        paper_bgcolor="white", plot_bgcolor="white",
+        font=_FONT, hoverlabel=_HOVER,
+        title=dict(text="Cost Mix: FY2025 vs FY2024",
+                   font=dict(size=13, color="#1e293b"),
+                   x=0, xanchor="left", pad=dict(l=8, t=4)),
+        showlegend=False,
+        margin=dict(l=24, r=24, t=48, b=16),
+    )
+
+    charts_compare = dict(
+        revenue=_json(fig_rev_cmp),
+        rev_cost=_json(fig_rvc_cmp),
+        balance_sheet=_json(fig_bs_cmp),
+        cost_mix=_json(fig_cost_cmp),
+    )
+
+    result = (kpis_py, charts_compare, cost_legend_py)
+    _PY_CACHE[ck] = result
+    return result
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @main.route("/")
 def index():
-    return render_template("upload.html", slots=FILE_SLOTS)
+    return render_template("upload.html", slots=FILE_SLOTS, slots_py=FILE_SLOTS_PY)
 
 
 @main.route("/upload", methods=["POST"])
@@ -467,9 +758,18 @@ def upload():
 
     if errors:
         shutil.rmtree(session_dir, ignore_errors=True)
-        return render_template("upload.html", slots=FILE_SLOTS, errors=errors)
+        return render_template("upload.html", slots=FILE_SLOTS,
+                               slots_py=FILE_SLOTS_PY, errors=errors)
 
-    # ── Step 2: Go straight to dashboard (direct Excel loaders, no AI) ──────────
+    # ── Step 2b: Save prior-year files if provided (all optional) ────────────
+    prior_year_dir = session_dir / "prior_year"
+    for key, filename, label, _ncols, _hint in FILE_SLOTS_PY:
+        f = request.files.get(key)
+        if f and f.filename and f.filename.lower().endswith(".xlsx"):
+            prior_year_dir.mkdir(exist_ok=True)
+            f.save(prior_year_dir / filename)
+
+    # ── Step 3: Go straight to dashboard (direct Excel loaders, no AI) ──────────
     # AI extraction is intentionally disabled in the upload flow — it caused
     # Render's 30-second request timeout to be hit before the response returned.
     # The loaders read column names directly from each file's header row, so
@@ -506,10 +806,60 @@ def dashboard(session_id):
         kpis, charts, cost_legend = _build_dashboard_data(data_dir)
     except Exception as e:
         return render_template("upload.html", slots=FILE_SLOTS,
+                               slots_py=FILE_SLOTS_PY,
                                errors=[f"Could not generate dashboard: {e}"])
 
-    return render_template("dashboard.html", kpis=kpis, charts=charts,
-                           cost_legend=cost_legend, session_id=session_id)
+    # ── Prior-year comparison ─────────────────────────────────────────────────
+    has_prior_year = False
+    kpis_py        = {}
+    charts_compare = {}
+    cost_legend_py = []
+    kpi_compare    = {}
+
+    prior_year_dir = (data_dir / "prior_year") if data_dir else None
+    if session_id == "demo" or (prior_year_dir and prior_year_dir.exists()):
+        try:
+            kpis_py, charts_compare, cost_legend_py = _build_prior_year_data(
+                data_dir, prior_year_dir
+            )
+            has_prior_year = True
+
+            # Compute YoY deltas
+            _hib = {
+                'total_revenue': True, 'gross_profit': True, 'gross_margin': True,
+                'ebitda': True, 'ebitda_margin': True, 'net_profit': True,
+                'net_margin': True, 'current_ratio': True,
+                'debt_to_equity': False,   # lower D/E is better
+                'total_assets': True, 'total_equity': True, 'total_liabilities': False,
+            }
+            for key, hib in _hib.items():
+                cy_val = kpis.get(key, 0) or 0
+                py_val = kpis_py.get(key, 0) or 0
+                if py_val:
+                    dp = round((cy_val - py_val) / abs(py_val) * 100, 1)
+                else:
+                    dp = None
+                is_up   = cy_val > py_val
+                is_good = (is_up and hib) or (not is_up and not hib)
+                kpi_compare[key] = {
+                    "py":        py_val,
+                    "delta_pct": dp,
+                    "is_up":     is_up,
+                    "is_good":   is_good,
+                }
+        except Exception:
+            has_prior_year = False   # silently degrade
+
+    return render_template(
+        "dashboard.html",
+        kpis=kpis, charts=charts, cost_legend=cost_legend,
+        session_id=session_id,
+        has_prior_year=has_prior_year,
+        kpis_py=kpis_py,
+        charts_compare=charts_compare,
+        cost_legend_py=cost_legend_py,
+        kpi_compare=kpi_compare,
+    )
 
 
 @main.route("/api/refresh/<session_id>")
@@ -610,7 +960,7 @@ def export_pdf(session_id):
 
 # ── Financial context builder (used by /api/ask) ─────────────────────────────
 
-def _build_financial_context(data_dir, kpis, cost_legend) -> str:
+def _build_financial_context(data_dir, kpis, cost_legend, kpis_py=None) -> str:
     """
     Assemble a structured plain-text summary of all financial data so Claude
     can answer natural-language questions with specific numbers.
@@ -631,6 +981,29 @@ def _build_financial_context(data_dir, kpis, cost_legend) -> str:
         f"  Debt/Equity Ratio:      {kpis.get('debt_to_equity',     0):>13.2f}x",
         "",
     ]
+
+    # ── Prior-year KPI comparison ─────────────────────────────────────────────
+    if kpis_py:
+        lines += [
+            "=== PRIOR YEAR KPIs (FY2024) ===",
+            f"  Total Revenue:          ${kpis_py.get('total_revenue',    0):>14,.0f}",
+            f"  Gross Profit:           ${kpis_py.get('gross_profit',     0):>14,.0f}  ({kpis_py.get('gross_margin', 0):.1f}% margin)",
+            f"  EBITDA:                 ${kpis_py.get('ebitda',           0):>14,.0f}  ({kpis_py.get('ebitda_margin',0):.1f}% margin)",
+            f"  Net Profit After Tax:   ${kpis_py.get('net_profit',       0):>14,.0f}  ({kpis_py.get('net_margin',   0):.1f}% margin)",
+            f"  Total Assets:           ${kpis_py.get('total_assets',     0):>14,.0f}",
+            f"  Current Ratio:          {kpis_py.get('current_ratio',     0):>13.2f}x",
+            "",
+        ]
+        # YoY changes
+        def _yoy(cy, py): return f"{((cy-py)/abs(py)*100):+.1f}%" if py else "N/A"
+        lines += [
+            "=== YEAR-ON-YEAR CHANGES ===",
+            f"  Revenue:       {_yoy(kpis.get('total_revenue',0), kpis_py.get('total_revenue',0))}",
+            f"  Gross Margin:  {kpis.get('gross_margin',0):.1f}% vs {kpis_py.get('gross_margin',0):.1f}% (FY2024)",
+            f"  EBITDA Margin: {kpis.get('ebitda_margin',0):.1f}% vs {kpis_py.get('ebitda_margin',0):.1f}% (FY2024)",
+            f"  Net Margin:    {kpis.get('net_margin',0):.1f}% vs {kpis_py.get('net_margin',0):.1f}% (FY2024)",
+            "",
+        ]
 
     # ── Monthly revenue ───────────────────────────────────────────────────────
     try:
@@ -726,7 +1099,12 @@ def api_ask(session_id):
     except Exception as e:
         return jsonify({"error": f"Could not load data: {e}"}), 500
 
-    context = _build_financial_context(data_dir, kpis, cost_legend)
+    try:
+        kpis_py_ctx, _, _ = _build_prior_year_data(data_dir,
+            (data_dir / "prior_year") if data_dir else None)
+    except Exception:
+        kpis_py_ctx = None
+    context = _build_financial_context(data_dir, kpis, cost_legend, kpis_py=kpis_py_ctx)
 
     def generate():
         api_key = os.environ.get("ANTHROPIC_API_KEY", "")
@@ -823,7 +1201,12 @@ def api_monthly_report(session_id):
     except Exception as exc:
         return jsonify({"error": f"Could not load data: {exc}"}), 500
 
-    context = _build_financial_context(data_dir, kpis, cost_legend)
+    try:
+        kpis_py_ctx, _, _ = _build_prior_year_data(data_dir,
+            (data_dir / "prior_year") if data_dir else None)
+    except Exception:
+        kpis_py_ctx = None
+    context = _build_financial_context(data_dir, kpis, cost_legend, kpis_py=kpis_py_ctx)
 
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:

@@ -314,6 +314,49 @@
       .card-body   { padding: 20px 20px 24px; }
       .slot { grid-template-columns: 1fr; gap: 8px; }
     }
+
+    /* ── Prior-year optional section ────────────────────────────────────── */
+    .py-section {
+      margin-top: 28px;
+      border-top: 1px solid var(--slate-200);
+      padding-top: 24px;
+    }
+    .py-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .py-title-wrap { display: flex; align-items: center; gap: 10px; }
+    .py-badge {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      background: #f0fdf4;
+      color: #15803d;
+      border: 1px solid #bbf7d0;
+      border-radius: 4px;
+      padding: 2px 7px;
+    }
+    .py-toggle-icon {
+      font-size: 18px;
+      color: var(--slate-400);
+      transition: transform .2s;
+    }
+    .py-section.open .py-toggle-icon { transform: rotate(180deg); }
+    .py-slots-wrap {
+      display: none;
+    }
+    .py-section.open .py-slots-wrap { display: block; }
+    .py-subtitle {
+      font-size: 12px;
+      color: var(--slate-400);
+      margin-bottom: 14px;
+      line-height: 1.5;
+    }
   </style>
 </head>
 <body>
@@ -363,6 +406,42 @@
           {% endfor %}
         </div>
 
+        <!-- ── Prior Year (Optional) ───────────────────────────────────────── -->
+        {% if slots_py %}
+        <div class="py-section" id="py-section">
+          <div class="py-header" onclick="togglePySection()">
+            <div class="py-title-wrap">
+              <div class="slots-label" style="margin:0">Add Prior Year for Comparison</div>
+              <span class="py-badge">Optional</span>
+            </div>
+            <span class="py-toggle-icon" id="py-icon">▾</span>
+          </div>
+          <div class="py-slots-wrap">
+            <p class="py-subtitle">
+              Upload FY2024 files to enable year-on-year comparison charts and insights on your dashboard.
+              All five files are required for comparison mode — or skip this section to use single-year view.
+            </p>
+            <div class="slots-label">Prior Year Files (FY2024) — all five must be .xlsx</div>
+            <div class="slots">
+              {% for key, filename, label, ncols, col_hint in slots_py %}
+              <div class="slot" id="slot-{{ key }}">
+                <div class="slot-label">
+                  {{ label }}<br>
+                  <span class="slot-ext">(.xlsx) · {{ col_hint }}</span>
+                </div>
+                <div class="slot-right">
+                  <label class="file-btn" for="file-{{ key }}">Choose file</label>
+                  <input type="file" id="file-{{ key }}" name="{{ key }}" accept=".xlsx" />
+                  <span class="slot-filename" id="name-{{ key }}">No file chosen</span>
+                  <span class="slot-check">✓</span>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
         <button type="submit" class="generate-btn" id="gen-btn">
           <span id="gen-label">Generate Dashboard</span>
           <span class="btn-arrow">→</span>
@@ -399,6 +478,29 @@
     }
   });
   {% endfor %}
+
+  // ── Prior-year slot handlers ──────────────────────────────────────────────
+  {% if slots_py %}
+  {% for key, filename, label, ncols, col_hint in slots_py %}
+  document.getElementById('file-{{ key }}').addEventListener('change', function() {
+    const slot   = document.getElementById('slot-{{ key }}');
+    const nameEl = document.getElementById('name-{{ key }}');
+    if (this.files.length > 0) {
+      nameEl.textContent = this.files[0].name;
+      nameEl.classList.add('chosen');
+      slot.classList.add('has-file');
+    } else {
+      nameEl.textContent = 'No file chosen';
+      nameEl.classList.remove('chosen');
+      slot.classList.remove('has-file');
+    }
+  });
+  {% endfor %}
+
+  function togglePySection() {
+    document.getElementById('py-section').classList.toggle('open');
+  }
+  {% endif %}
 
   // ── Loading state on submit ───────────────────────────────────────────────
   document.getElementById('upload-form').addEventListener('submit', function() {
