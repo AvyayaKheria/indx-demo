@@ -192,8 +192,9 @@
     }
 
     /* ── Section ───────────────────────────────────────────────────────── */
-    .section { margin-top: 40px; }
+    .section { margin-top: 40px; margin-bottom: 40px; }
     .section:first-child { margin-top: 0; }
+    .section:last-child  { margin-bottom: 0; }
 
     .section-header {
       display: flex;
@@ -220,6 +221,7 @@
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 14px;
+      align-items: stretch;
     }
 
     .kpi-card {
@@ -298,6 +300,7 @@
     .chart-plot {
       width: 100%;
       height: 340px;
+      min-height: 300px;
     }
     .chart-plot.tall {
       height: 380px;
@@ -591,6 +594,7 @@
       border: 1px solid #fde68a;
       border-left: 4px solid #f59e0b;
       border-radius: 8px;
+      min-height: 56px;
     }
     .anomaly-item.sev-high {
       background: #fff5f5;
@@ -617,7 +621,9 @@
       text-transform: uppercase;
       padding: 2px 8px;
       border-radius: 4px;
-      align-self: center;
+      align-self: flex-start;
+      min-width: 52px;
+      text-align: center;
     }
     .sev-badge.sev-high   { background: #fee2e2; color: #991b1b; }
     .sev-badge.sev-medium { background: #fef3c7; color: #92400e; }
@@ -651,12 +657,15 @@
       grid-template-columns: repeat(4, 1fr);
       gap: 14px;
       margin-bottom: 20px;
+      align-items: stretch;
     }
     .bva-card {
       border-radius: var(--radius);
       border: 1px solid var(--slate-200);
       padding: 16px 18px;
       box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
     }
     .bva-fav   { background: #f0fdf4; border-color: #bbf7d0; }
     .bva-unfav { background: #fff5f5; border-color: #fecaca; }
@@ -695,8 +704,9 @@
       border-bottom: 1px solid var(--slate-200);
     }
     .bva-table thead th:not(:first-child) { text-align: right; }
-    .bva-table tbody tr { border-bottom: 1px solid var(--slate-100); }
+    .bva-table tbody tr { border-bottom: 1px solid var(--slate-100); transition: background .12s; }
     .bva-table tbody tr:last-child { border-bottom: none; }
+    .bva-table tbody tr:hover { background: var(--slate-50) !important; }
     .bva-row-fav   { background: #fafffe; }
     .bva-row-unfav { background: #fffafa; }
     .bva-item-name { padding: 9px 12px; color: var(--slate-700); font-weight: 500; }
@@ -722,6 +732,7 @@
       padding: 14px 16px;
       border-radius: 8px;
       border-left: 4px solid;
+      min-height: 120px;
     }
     .bva-ac-fav   { background: #f0fdf4; border-left-color: #22c55e; }
     .bva-ac-unfav { background: #fff5f5; border-left-color: #ef4444; }
@@ -787,6 +798,7 @@
       grid-template-columns: repeat(3, 1fr);
       gap: 14px;
       margin-bottom: 14px;
+      align-items: stretch;
     }
     .fc-card {
       background: var(--white);
@@ -794,6 +806,8 @@
       border-radius: var(--radius);
       box-shadow: var(--shadow-sm);
       padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
     }
     .fc-card-label {
       font-size: 11px;
@@ -840,8 +854,16 @@
     .fc-assumptions-title { font-size: 13px; font-weight: 600; color: var(--slate-700); }
     .fc-chevron { font-size: 11px; color: var(--slate-400); transition: transform .2s; }
     .fc-chevron.open { transform: rotate(180deg); }
-    .fc-assumptions-body { display: none; padding: 0 20px 16px; }
+    .fc-assumptions-body {
+      display: none;
+      padding: 0 20px 16px;
+      animation: fcSlideIn .2s ease;
+    }
     .fc-assumptions-body.open { display: block; }
+    @keyframes fcSlideIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
     .fc-assumption-item {
       padding: 10px 0;
       border-top: 1px solid var(--slate-100);
@@ -1049,6 +1071,18 @@
       border-radius: 50%;
       margin: 0 6px;
       vertical-align: middle;
+    }
+
+    /* ── Dash footer ────────────────────────────────────────────────────── */
+    .dash-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 0 32px;
+      margin-top: 8px;
+      border-top: 1px solid var(--slate-200);
+      font-size: 11px;
+      color: var(--slate-400);
     }
 
     /* ── Ask CFO AI card ───────────────────────────────────────────────── */
@@ -1456,6 +1490,7 @@
       grid-template-columns: repeat(3, 1fr);
       gap: 16px;
       margin-bottom: 28px;
+      align-items: stretch;
     }
     .rw-card {
       background: var(--white);
@@ -1983,11 +2018,12 @@
 
   <!-- ── AI Financial Insights ───────────────────────────────────────────── -->
   <section class="section" id="ai-insights-section">
+    <div class="section-header">
+      <span class="section-title">AI Financial Insights</span>
+      <div class="section-line"></div>
+      <span class="ai-badge">AI · Claude</span>
+    </div>
     <div class="ai-insights-card">
-      <div class="ai-insights-header">
-        <span class="ai-insights-title">AI Financial Insights</span>
-        <span class="ai-badge">AI Insights</span>
-      </div>
 
       <!-- Analysing state -->
       <div id="ai-analysing" class="ai-analysing-text">Analysing…</div>
@@ -2115,11 +2151,12 @@
 
   <!-- ── Anomalies & Flags ──────────────────────────────────────────────── -->
   <section class="section" id="anomalies-section">
+    <div class="section-header">
+      <span class="section-title">Anomalies &amp; Flags</span>
+      <div class="section-line"></div>
+      <span class="anomaly-meta-badge">Auto-Detected</span>
+    </div>
     <div class="anomaly-card">
-      <div class="anomaly-header">
-        <span class="anomaly-title">Anomalies &amp; Flags</span>
-        <span class="anomaly-meta-badge">Auto-Detected</span>
-      </div>
 
       <!-- Loading state -->
       <div id="anomaly-loading" class="anomaly-loading">Scanning financials for anomalies…</div>
@@ -2416,9 +2453,11 @@
     <!-- Scenario toggle -->
     <div class="fc-scenario-row">
       <span class="fc-scenario-label">Scenario:</span>
-      <button class="fc-btn" id="fc-btn-conservative" onclick="setFcScenario('conservative')">Conservative</button>
-      <button class="fc-btn active" id="fc-btn-base" onclick="setFcScenario('base')">Base</button>
-      <button class="fc-btn" id="fc-btn-optimistic" onclick="setFcScenario('optimistic')">Optimistic</button>
+      <div class="compare-toggle">
+        <button class="ct-btn" id="fc-btn-conservative" onclick="setFcScenario('conservative')">Conservative</button>
+        <button class="ct-btn active" id="fc-btn-base" onclick="setFcScenario('base')">Base</button>
+        <button class="ct-btn" id="fc-btn-optimistic" onclick="setFcScenario('optimistic')">Optimistic</button>
+      </div>
     </div>
 
     <!-- Chart -->
@@ -2582,17 +2621,9 @@
   </section>
 
   <!-- ── Footer ───────────────────────────────────────────────────────────── -->
-  <footer class="footer">
-    <div class="footer-left">
-      <strong>Grain &amp; Co.</strong> — Internal CFO Dashboard
-      <span class="footer-dot"></span>
-      v1.0
-    </div>
-    <div class="footer-right">
-      Data as at 31 Dec 2025
-      <span class="footer-dot"></span>
-      FY2025
-    </div>
+  <footer class="dash-footer">
+    <span>indx · CFO Dashboard · v1.0</span>
+    <span id="footer-date"></span>
   </footer>
 
 </div>
@@ -3461,7 +3492,8 @@
     window.setFcScenario = function(s) {
       _scenario = s;
       ['conservative','base','optimistic'].forEach(function(sc) {
-        document.getElementById('fc-btn-' + sc).classList.toggle('active', sc === s);
+        var btn = document.getElementById('fc-btn-' + sc);
+        btn.classList.toggle('active', sc === s);
       });
       if (_fcData) render(_fcData, s);
     };
@@ -3806,6 +3838,10 @@
       });
     });
   })();
+
+  // ── Footer date ───────────────────────────────────────────────────────────
+  document.getElementById('footer-date').textContent =
+    new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
 </script>
 
 </body>
