@@ -1546,9 +1546,7 @@
         </div>
         {% if has_prior_year %}{% set cmp = kpi_compare.get('total_revenue', {}) %}
         <div class="kpi-compare">
-          <span class="kpi-yoy {{ 'yoy-good' if cmp.is_good else 'yoy-bad' }}">
-            {{ '▲' if cmp.is_up else '▼' }}&nbsp;{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% vs FY2024
-          </span>
+          {% if cmp.delta_pct == 0 %}<span class="kpi-yoy yoy-flat">— 0.0% vs FY2024</span>{% else %}<span class="kpi-yoy {{ 'yoy-good' if cmp.is_good else 'yoy-bad' }}">{{ '▲' if cmp.is_up else '▼' }}&nbsp;{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% vs FY2024</span>{% endif %}
           <span class="kpi-py-val">FY2024: ${{ "{:,.0f}".format(cmp.py) }}</span>
         </div>{% endif %}
       </div>
@@ -1562,9 +1560,7 @@
         </div>
         {% if has_prior_year %}{% set cmp = kpi_compare.get('gross_profit', {}) %}
         <div class="kpi-compare">
-          <span class="kpi-yoy {{ 'yoy-good' if cmp.is_good else 'yoy-bad' }}">
-            {{ '▲' if cmp.is_up else '▼' }}&nbsp;{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% vs FY2024
-          </span>
+          {% if cmp.delta_pct == 0 %}<span class="kpi-yoy yoy-flat">— 0.0% vs FY2024</span>{% else %}<span class="kpi-yoy {{ 'yoy-good' if cmp.is_good else 'yoy-bad' }}">{{ '▲' if cmp.is_up else '▼' }}&nbsp;{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% vs FY2024</span>{% endif %}
           <span class="kpi-py-val">FY2024: ${{ "{:,.0f}".format(cmp.py) }} · {{ kpis_py.gross_margin }}% margin</span>
         </div>{% endif %}
       </div>
@@ -1578,9 +1574,7 @@
         </div>
         {% if has_prior_year %}{% set cmp = kpi_compare.get('ebitda', {}) %}
         <div class="kpi-compare">
-          <span class="kpi-yoy {{ 'yoy-good' if cmp.is_good else 'yoy-bad' }}">
-            {{ '▲' if cmp.is_up else '▼' }}&nbsp;{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% vs FY2024
-          </span>
+          {% if cmp.delta_pct == 0 %}<span class="kpi-yoy yoy-flat">— 0.0% vs FY2024</span>{% elif cmp.both_neg %}<span class="kpi-yoy {{ 'yoy-good' if cmp.is_good else 'yoy-bad' }}">{{ 'Improved' if cmp.is_good else 'Deteriorated' }} vs FY2024</span>{% else %}<span class="kpi-yoy {{ 'yoy-good' if cmp.is_good else 'yoy-bad' }}">{{ '▲' if cmp.is_up else '▼' }}&nbsp;{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% vs FY2024</span>{% endif %}
           <span class="kpi-py-val">FY2024: ${{ "{:,.0f}".format(cmp.py) }} · {{ kpis_py.ebitda_margin }}% margin</span>
         </div>{% endif %}
       </div>
@@ -1594,9 +1588,7 @@
         </div>
         {% if has_prior_year %}{% set cmp = kpi_compare.get('net_profit', {}) %}
         <div class="kpi-compare">
-          <span class="kpi-yoy {{ 'yoy-good' if cmp.is_good else 'yoy-bad' }}">
-            {{ '▲' if cmp.is_up else '▼' }}&nbsp;{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% vs FY2024
-          </span>
+          {% if cmp.delta_pct == 0 %}<span class="kpi-yoy yoy-flat">— 0.0% vs FY2024</span>{% elif cmp.both_neg %}<span class="kpi-yoy {{ 'yoy-good' if cmp.is_good else 'yoy-bad' }}">{{ 'Improved' if cmp.is_good else 'Deteriorated' }} vs FY2024</span>{% else %}<span class="kpi-yoy {{ 'yoy-good' if cmp.is_good else 'yoy-bad' }}">{{ '▲' if cmp.is_up else '▼' }}&nbsp;{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% vs FY2024</span>{% endif %}
           <span class="kpi-py-val">FY2024: ${{ "{:,.0f}".format(cmp.py) }} · {{ kpis_py.net_margin }}% margin</span>
         </div>{% endif %}
       </div>
@@ -1609,9 +1601,7 @@
         </div>
         {% if has_prior_year %}{% set cmp = kpi_compare.get('total_assets', {}) %}
         <div class="kpi-compare">
-          <span class="kpi-yoy {{ 'yoy-good' if cmp.is_good else 'yoy-bad' }}">
-            {{ '▲' if cmp.is_up else '▼' }}&nbsp;{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% vs FY2024
-          </span>
+          {% if cmp.delta_pct == 0 %}<span class="kpi-yoy yoy-flat">— 0.0% vs FY2024</span>{% else %}<span class="kpi-yoy {{ 'yoy-good' if cmp.is_good else 'yoy-bad' }}">{{ '▲' if cmp.is_up else '▼' }}&nbsp;{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% vs FY2024</span>{% endif %}
           <span class="kpi-py-val">FY2024: ${{ "{:,.0f}".format(cmp.py) }}</span>
         </div>{% endif %}
       </div>
@@ -1624,9 +1614,7 @@
         </div>
         {% if has_prior_year %}{% set cmp = kpi_compare.get('total_equity', {}) %}
         <div class="kpi-compare">
-          <span class="kpi-yoy {{ 'yoy-good' if cmp.is_good else 'yoy-bad' }}">
-            {{ '▲' if cmp.is_up else '▼' }}&nbsp;{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% vs FY2024
-          </span>
+          {% if cmp.delta_pct == 0 %}<span class="kpi-yoy yoy-flat">— 0.0% vs FY2024</span>{% else %}<span class="kpi-yoy {{ 'yoy-good' if cmp.is_good else 'yoy-bad' }}">{{ '▲' if cmp.is_up else '▼' }}&nbsp;{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% vs FY2024</span>{% endif %}
           <span class="kpi-py-val">FY2024: ${{ "{:,.0f}".format(cmp.py) }}</span>
         </div>{% endif %}
       </div>
@@ -1642,9 +1630,7 @@
         </div>
         {% if has_prior_year %}{% set cmp = kpi_compare.get('current_ratio', {}) %}
         <div class="kpi-compare">
-          <span class="kpi-yoy {{ 'yoy-good' if cmp.is_good else 'yoy-bad' }}">
-            {{ '▲' if cmp.is_up else '▼' }}&nbsp;{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% vs FY2024
-          </span>
+          {% if cmp.delta_pct == 0 %}<span class="kpi-yoy yoy-flat">— 0.0% vs FY2024</span>{% else %}<span class="kpi-yoy {{ 'yoy-good' if cmp.is_good else 'yoy-bad' }}">{{ '▲' if cmp.is_up else '▼' }}&nbsp;{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% vs FY2024</span>{% endif %}
           <span class="kpi-py-val">FY2024: {{ kpis_py.current_ratio }}x</span>
         </div>{% endif %}
       </div>
@@ -1660,9 +1646,7 @@
         </div>
         {% if has_prior_year %}{% set cmp = kpi_compare.get('debt_to_equity', {}) %}
         <div class="kpi-compare">
-          <span class="kpi-yoy {{ 'yoy-good' if cmp.is_good else 'yoy-bad' }}">
-            {{ '▲' if cmp.is_up else '▼' }}&nbsp;{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% vs FY2024
-          </span>
+          {% if cmp.delta_pct == 0 %}<span class="kpi-yoy yoy-flat">— 0.0% vs FY2024</span>{% else %}<span class="kpi-yoy {{ 'yoy-good' if cmp.is_good else 'yoy-bad' }}">{{ '▲' if cmp.is_up else '▼' }}&nbsp;{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% vs FY2024</span>{% endif %}
           <span class="kpi-py-val">FY2024: {{ kpis_py.debt_to_equity }}x</span>
         </div>{% endif %}
       </div>
@@ -1971,8 +1955,7 @@
         <div class="pl-mini-sub" data-kpi-key="gross_margin" data-kpi-fmt="pct_of_rev">{{ kpis.gross_margin }}% of Revenue</div>
         {% if has_prior_year %}{% set cmp = kpi_compare.get('gross_profit', {}) %}
         <div class="pl-compare-row">
-          <span class="pl-compare-arrow {{ 'good' if cmp.is_good else 'bad' }}">{{ '▲' if cmp.is_up else '▼' }}</span>
-          <span>{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% · FY2024: ${{ "{:,.0f}".format(cmp.py) }}</span>
+          {% if cmp.delta_pct == 0 %}<span class="pl-compare-arrow" style="color:var(--slate-400)">—</span><span>0.0% · FY2024: ${{ "{:,.0f}".format(cmp.py) }}</span>{% else %}<span class="pl-compare-arrow {{ 'good' if cmp.is_good else 'bad' }}">{{ '▲' if cmp.is_up else '▼' }}</span><span>{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% · FY2024: ${{ "{:,.0f}".format(cmp.py) }}</span>{% endif %}
         </div>{% endif %}
       </div>
       <div class="pl-mini-card">
@@ -1981,8 +1964,7 @@
         <div class="pl-mini-sub" data-kpi-key="ebitda_margin" data-kpi-fmt="pct_of_rev">{{ kpis.ebitda_margin }}% of Revenue</div>
         {% if has_prior_year %}{% set cmp = kpi_compare.get('ebitda', {}) %}
         <div class="pl-compare-row">
-          <span class="pl-compare-arrow {{ 'good' if cmp.is_good else 'bad' }}">{{ '▲' if cmp.is_up else '▼' }}</span>
-          <span>{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% · FY2024: ${{ "{:,.0f}".format(cmp.py) }}</span>
+          {% if cmp.delta_pct == 0 %}<span class="pl-compare-arrow" style="color:var(--slate-400)">—</span><span>0.0% · FY2024: ${{ "{:,.0f}".format(cmp.py) }}</span>{% elif cmp.both_neg %}<span class="pl-compare-arrow {{ 'good' if cmp.is_good else 'bad' }}">{{ '▲' if cmp.is_up else '▼' }}</span><span>{{ 'Improved' if cmp.is_good else 'Deteriorated' }} · FY2024: ${{ "{:,.0f}".format(cmp.py) }}</span>{% else %}<span class="pl-compare-arrow {{ 'good' if cmp.is_good else 'bad' }}">{{ '▲' if cmp.is_up else '▼' }}</span><span>{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% · FY2024: ${{ "{:,.0f}".format(cmp.py) }}</span>{% endif %}
         </div>{% endif %}
       </div>
       <div class="pl-mini-card">
@@ -1991,8 +1973,7 @@
         <div class="pl-mini-sub" data-kpi-key="net_margin" data-kpi-fmt="pct_of_rev">{{ kpis.net_margin }}% of Revenue</div>
         {% if has_prior_year %}{% set cmp = kpi_compare.get('net_profit', {}) %}
         <div class="pl-compare-row">
-          <span class="pl-compare-arrow {{ 'good' if cmp.is_good else 'bad' }}">{{ '▲' if cmp.is_up else '▼' }}</span>
-          <span>{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% · FY2024: ${{ "{:,.0f}".format(cmp.py) }}</span>
+          {% if cmp.delta_pct == 0 %}<span class="pl-compare-arrow" style="color:var(--slate-400)">—</span><span>0.0% · FY2024: ${{ "{:,.0f}".format(cmp.py) }}</span>{% elif cmp.both_neg %}<span class="pl-compare-arrow {{ 'good' if cmp.is_good else 'bad' }}">{{ '▲' if cmp.is_up else '▼' }}</span><span>{{ 'Improved' if cmp.is_good else 'Deteriorated' }} · FY2024: ${{ "{:,.0f}".format(cmp.py) }}</span>{% else %}<span class="pl-compare-arrow {{ 'good' if cmp.is_good else 'bad' }}">{{ '▲' if cmp.is_up else '▼' }}</span><span>{{ '+' if cmp.delta_pct > 0 else '' }}{{ cmp.delta_pct }}% · FY2024: ${{ "{:,.0f}".format(cmp.py) }}</span>{% endif %}
         </div>{% endif %}
       </div>
     </div>

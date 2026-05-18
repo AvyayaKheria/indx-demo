@@ -839,13 +839,15 @@ def dashboard(session_id):
                     dp = round((cy_val - py_val) / abs(py_val) * 100, 1)
                 else:
                     dp = None
-                is_up   = cy_val > py_val
-                is_good = (is_up and hib) or (not is_up and not hib)
+                is_up    = cy_val > py_val
+                is_good  = (is_up and hib) or (not is_up and not hib)
+                both_neg = cy_val < 0 and py_val < 0
                 kpi_compare[key] = {
                     "py":        py_val,
                     "delta_pct": dp,
                     "is_up":     is_up,
                     "is_good":   is_good,
+                    "both_neg":  both_neg,
                 }
         except Exception:
             has_prior_year = False   # silently degrade
