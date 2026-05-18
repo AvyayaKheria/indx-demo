@@ -954,7 +954,7 @@ def _build_budget_data(data_dir, budget_dir):
     fig_bva.update_layout(
         barmode="group",
         margin=dict(l=60, r=70, t=10, b=40),
-        paper_bgcolor="transparent", plot_bgcolor="transparent",
+        paper_bgcolor="white", plot_bgcolor="white",
         font=_FONT, hoverlabel=_HOVER,
         legend=dict(orientation="h", x=0, y=1.08, font=dict(size=11)),
         xaxis=dict(gridcolor=GRID, zeroline=False),
