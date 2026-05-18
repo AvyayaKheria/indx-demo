@@ -68,6 +68,84 @@ PALETTE = [NAVY, TEAL, TEAL2, TEAL3, "#2563eb", "#7c3aed", "#db2777", "#f59e0b"]
 NAVY_LIGHT = "#6b8cc9"   # prior-year bar / line colour
 RED_LIGHT  = "#f87171"   # prior-year cost line colour
 
+# ── Month helpers (used by forecast) ─────────────────────────────────────────
+_MONTH_NUM   = {"jan":1,"feb":2,"mar":3,"apr":4,"may":5,"jun":6,
+                "jul":7,"aug":8,"sep":9,"oct":10,"nov":11,"dec":12}
+_MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun",
+                "Jul","Aug","Sep","Oct","Nov","Dec"]
+
+def _month_to_num(s: str) -> int:
+    """'Jan', 'Jan-25', 'January' … → 1-12, or 0 if unrecognised."""
+    return _MONTH_NUM.get(str(s).lower().strip()[:3], 0)
+
+
+def _statistical_forecast(rev_df, n: int = 6):
+    """
+    Pure-Python statistical 6-month revenue forecast.
+    Returns (forecasts, confidence_level, avg_growth_pct) where
+    forecasts is a list of n dicts: {month_label, month_num, base, low, high}.
+    """
+    totals = [float(v) for v in rev_df["Total"].tolist()]
+    months = rev_df["Month"].tolist()
+    k = len(totals)
+    if k == 0:
+        return [], "Low", 0.0
+
+    # Median MoM growth (robust to outliers)
+    growth_rates = [(totals[i] - totals[i-1]) / totals[i-1]
+                    for i in range(1, k) if totals[i-1] > 0]
+    if growth_rates:
+        sg = sorted(growth_rates)
+        mid = len(sg) // 2
+        avg_growth = sg[mid] if len(sg) % 2 else (sg[mid-1] + sg[mid]) / 2.0
+    else:
+        avg_growth = 0.0
+
+    # Seasonality: each month's ratio relative to overall mean
+    overall_mean = sum(totals) / k if k else 1.0
+    seas: dict = {}
+    for i, m in enumerate(months):
+        mn = _month_to_num(m)
+        if mn:
+            seas.setdefault(mn, []).append(totals[i] / overall_mean if overall_mean > 0 else 1.0)
+    avg_season = {mn: sum(v) / len(v) for mn, v in seas.items()}
+
+    # Confidence based on coefficient of variation
+    if overall_mean > 0 and k > 1:
+        variance = sum((t - overall_mean) ** 2 for t in totals) / k
+        cv = variance ** 0.5 / overall_mean
+    else:
+        cv = 0.5
+
+    if cv < 0.12:
+        confidence, band = "High",   0.08
+    elif cv < 0.25:
+        confidence, band = "Medium", 0.16
+    else:
+        confidence, band = "Low",    0.28
+
+    last_num    = _month_to_num(months[-1]) or 12
+    last_val    = totals[-1]
+    last_season = avg_season.get(last_num, 1.0)
+
+    results = []
+    for i in range(1, n + 1):
+        fwd_num    = (last_num - 1 + i) % 12 + 1
+        trend      = (1 + avg_growth) ** i
+        fwd_season = avg_season.get(fwd_num, 1.0)
+        season_adj = fwd_season / last_season if last_season else 1.0
+        base = last_val * trend * season_adj
+        results.append({
+            "month_label": f"{_MONTH_NAMES[fwd_num - 1]} 26",
+            "month_num":   fwd_num,
+            "base": round(base),
+            "low":  round(base * (1 - band)),
+            "high": round(base * (1 + band)),
+            "reasoning": "",
+        })
+
+    return results, confidence, round(avg_growth * 100, 1)
+
 _FONT   = dict(family="Inter, system-ui, -apple-system, sans-serif", size=12, color="#475569")
 _HOVER  = dict(
     bgcolor="white", bordercolor=BORDER,
@@ -1160,6 +1238,138 @@ def api_ask(session_id):
 
 
 # ── System prompt for the monthly board report ───────────────────────────────
+_FORECAST_SYSTEM = (
+    "You are a financial analyst generating a 6-month revenue forecast.\n\n"
+    "You will receive 12 months of historical monthly revenue data and a statistical baseline.\n"
+    "Return a JSON object with this EXACT structure (no markdown, no code fences, no extra text):\n"
+    "{\"forecast\":["
+    "{\"month\":\"Jan 26\",\"low_estimate\":120000,\"base_estimate\":145000,"
+    "\"high_estimate\":170000,\"reasoning\":\"one plain-English sentence\"},"
+    "... 5 more months ...]}\n\n"
+    "Rules:\n"
+    "- Consider seasonality, growth trends, and anomalies in the data\n"
+    "- Base estimate = your best single-point forecast; low/high = realistic bounds (not extreme)\n"
+    "- Reasoning: one concise sentence per month referencing specific patterns you observe\n"
+    "- Months must be labelled exactly: Jan 26, Feb 26, Mar 26, Apr 26, May 26, Jun 26\n"
+    "- Return ONLY valid JSON — nothing outside the JSON object"
+)
+
+
+@main.route("/api/forecast/<session_id>")
+def api_forecast(session_id):
+    if session_id == "demo":
+        data_dir = None
+    else:
+        session_dir = UPLOAD_DIR / session_id
+        if not session_dir.exists():
+            return jsonify({"error": "Session not found"}), 404
+        data_dir = session_dir
+
+    # ── Load & reconcile revenue data ─────────────────────────────────────────
+    try:
+        if _has_extracted_json(data_dir):
+            rev_df = load_revenue_json(data_dir)
+        else:
+            rev_df = load_revenue(data_dir)
+        # Reconcile monthly totals to P&L annual total (same as dashboard)
+        try:
+            kpis, _, _ = _build_dashboard_data(data_dir)
+            pl_rev  = kpis.get("total_revenue", 0) or 0
+            raw_tot = rev_df["Total"].sum()
+            if raw_tot > 0 and pl_rev > 0:
+                scale = pl_rev / raw_tot
+                for col in [c for c in rev_df.columns if c != "Month"]:
+                    rev_df[col] = (rev_df[col] * scale).round(0).astype(int)
+        except Exception:
+            pass
+    except Exception as exc:
+        return jsonify({"error": f"Could not load revenue data: {exc}"}), 500
+
+    # ── Statistical baseline ──────────────────────────────────────────────────
+    stat_fc, confidence, avg_growth_pct = _statistical_forecast(rev_df)
+    fc_months = [dict(m) for m in stat_fc]   # working copy
+
+    # ── Check prior-year availability ─────────────────────────────────────────
+    prior_year_dir = (data_dir / "prior_year") if data_dir else None
+    has_prior = session_id == "demo" or bool(prior_year_dir and prior_year_dir.exists())
+
+    # ── Claude AI enhancement (best-effort, falls back to statistical) ────────
+    api_key     = os.environ.get("ANTHROPIC_API_KEY", "")
+    claude_used = False
+    if api_key and stat_fc:
+        try:
+            import anthropic as _ant
+            import json as _json
+            client   = _ant.Anthropic(api_key=api_key)
+            from .insights import _best_model
+            model_id, _ = _best_model(client)
+            if model_id:
+                months_list = rev_df["Month"].tolist()
+                totals_list = rev_df["Total"].tolist()
+                tbl = "\n".join(f"  {m}: ${t:,.0f}"
+                                for m, t in zip(months_list, totals_list))
+                stat_summary = "\n".join(
+                    f"  {s['month_label']}: base=${s['base']:,.0f}"
+                    f"  low=${s['low']:,.0f}  high=${s['high']:,.0f}"
+                    for s in stat_fc
+                )
+                prompt = (
+                    f"Historical monthly revenue (FY2025):\n{tbl}\n\n"
+                    f"Statistical baseline for next 6 months:\n{stat_summary}\n\n"
+                    "Generate your AI-enhanced forecast for Jan 26 – Jun 26."
+                )
+                msg = client.messages.create(
+                    model=model_id,
+                    max_tokens=900,
+                    system=_FORECAST_SYSTEM,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                raw = msg.content[0].text.strip()
+                # Strip any accidental markdown fences
+                if "```" in raw:
+                    start = raw.find("{")
+                    end   = raw.rfind("}") + 1
+                    raw   = raw[start:end] if start != -1 else raw
+                parsed = _json.loads(raw)
+                cl_fc  = parsed.get("forecast", [])
+                if len(cl_fc) == 6:
+                    for i, (sf, cf) in enumerate(zip(stat_fc, cl_fc)):
+                        fc_months[i] = {
+                            "month_label": sf["month_label"],
+                            "month_num":   sf["month_num"],
+                            "base": int(cf.get("base_estimate", sf["base"])),
+                            "low":  int(cf.get("low_estimate",  sf["low"])),
+                            "high": int(cf.get("high_estimate", sf["high"])),
+                            "reasoning": cf.get("reasoning", ""),
+                        }
+                    claude_used = True
+        except Exception:
+            pass   # silent fallback to statistical
+
+    # ── Summary ───────────────────────────────────────────────────────────────
+    actuals  = [int(v) for v in rev_df["Total"].tolist()]
+    months_l = rev_df["Month"].tolist()
+    h1_2026  = sum(f["base"] for f in fc_months)
+    h1_2025  = sum(actuals[:6]) if len(actuals) >= 6 else sum(actuals)
+    growth_pct = round((h1_2026 - h1_2025) / h1_2025 * 100, 1) if h1_2025 else 0.0
+
+    return jsonify({
+        "actual_months":   months_l,
+        "actual_totals":   actuals,
+        "forecast":        fc_months,
+        "summary": {
+            "h1_2026":    round(h1_2026),
+            "h1_2025":    round(h1_2025),
+            "growth_pct": growth_pct,
+            "confidence": confidence,
+        },
+        "avg_growth_rate": avg_growth_pct,
+        "has_prior_year":  has_prior,
+        "claude_used":     claude_used,
+        "error":           None,
+    })
+
+
 _ANOMALY_SYSTEM = (
     "You are a financial analyst detecting anomalies and red flags in company financials.\n\n"
     "Analyse the provided data and return a JSON array of anomaly objects. Each object must have:\n"

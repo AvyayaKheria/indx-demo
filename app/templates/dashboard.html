@@ -640,6 +640,132 @@
       padding: 4px 0;
     }
 
+    /* ── Revenue Forecast ───────────────────────────────────────────────── */
+    .fc-subtitle {
+      font-size: 13px;
+      color: var(--slate-500);
+      margin: -4px 0 18px;
+    }
+    .fc-scenario-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .fc-scenario-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--slate-500);
+      margin-right: 4px;
+    }
+    .fc-btn {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--slate-200);
+      background: var(--slate-50);
+      color: var(--slate-600);
+      cursor: pointer;
+      transition: background .15s, color .15s, border-color .15s;
+    }
+    .fc-btn:hover { background: var(--slate-100); }
+    .fc-btn.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+    .fc-chart-wrap {
+      background: var(--white);
+      border: 1px solid var(--slate-200);
+      border-radius: var(--radius);
+      padding: 20px 20px 12px;
+      margin-bottom: 14px;
+    }
+    #fc-chart { height: 320px; }
+    #fc-loading {
+      font-size: 13px; color: var(--slate-400); font-style: italic;
+      padding: 80px 0; text-align: center;
+    }
+    #fc-error { font-size: 13px; color: #ef4444; padding: 8px 0; }
+    .fc-cards-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+    .fc-card {
+      background: var(--white);
+      border: 1px solid var(--slate-200);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      padding: 16px 20px;
+    }
+    .fc-card-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--slate-500);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin-bottom: 8px;
+    }
+    .fc-card-value {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--navy);
+      letter-spacing: -.02em;
+      margin-bottom: 4px;
+    }
+    .fc-card-sub { font-size: 12px; color: var(--slate-500); }
+    .fc-confidence-badge {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 4px;
+    }
+    .fc-confidence-high   { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+    .fc-confidence-medium { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+    .fc-confidence-low    { background: #fff5f5; color: #991b1b; border: 1px solid #fecaca; }
+    .fc-assumptions-wrap {
+      background: var(--white);
+      border: 1px solid var(--slate-200);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    .fc-assumptions-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .fc-assumptions-toggle:hover { background: var(--slate-50); }
+    .fc-assumptions-title { font-size: 13px; font-weight: 600; color: var(--slate-700); }
+    .fc-chevron { font-size: 11px; color: var(--slate-400); transition: transform .2s; }
+    .fc-chevron.open { transform: rotate(180deg); }
+    .fc-assumptions-body { display: none; padding: 0 20px 16px; }
+    .fc-assumptions-body.open { display: block; }
+    .fc-assumption-item {
+      padding: 10px 0;
+      border-top: 1px solid var(--slate-100);
+      font-size: 13px;
+      color: var(--slate-600);
+      line-height: 1.5;
+    }
+    .fc-assumption-month { font-weight: 600; color: var(--navy); margin-right: 6px; }
+    .fc-notice {
+      padding: 10px 14px;
+      background: #f0fdfa;
+      border: 1px solid #99f6e4;
+      border-radius: 8px;
+      font-size: 12px;
+      color: #134e4a;
+      margin-bottom: 10px;
+    }
+    .fc-powered { font-size: 11px; color: var(--slate-400); margin-top: 4px; }
+    @media (max-width: 640px) {
+      .fc-cards-row { grid-template-columns: 1fr; }
+    }
+
     /* ── CFO Intelligence ───────────────────────────────────────────────── */
     .insights-badge {
       display: flex;
@@ -2070,6 +2196,65 @@
     </div>
   </section>
 
+  <!-- ── Revenue Forecast ────────────────────────────────────────────────── -->
+  <section class="section" id="fc-section">
+    <div class="section-header">
+      <span class="section-title">Revenue Forecast</span>
+      <div class="section-line"></div>
+    </div>
+    <p class="fc-subtitle">AI-powered forecast based on historical trends</p>
+
+    <!-- Scenario toggle -->
+    <div class="fc-scenario-row">
+      <span class="fc-scenario-label">Scenario:</span>
+      <button class="fc-btn" id="fc-btn-conservative" onclick="setFcScenario('conservative')">Conservative</button>
+      <button class="fc-btn active" id="fc-btn-base" onclick="setFcScenario('base')">Base</button>
+      <button class="fc-btn" id="fc-btn-optimistic" onclick="setFcScenario('optimistic')">Optimistic</button>
+    </div>
+
+    <!-- Chart -->
+    <div class="fc-chart-wrap">
+      <div id="fc-loading">Generating forecast…</div>
+      <div id="fc-error" style="display:none"></div>
+      <div id="fc-chart" style="display:none"></div>
+    </div>
+
+    <!-- Summary cards (shown after load) -->
+    <div class="fc-cards-row" id="fc-cards" style="display:none">
+      <div class="fc-card">
+        <div class="fc-card-label">Projected H1 2026 Revenue</div>
+        <div class="fc-card-value" id="fc-h1-value">—</div>
+        <div class="fc-card-sub" id="fc-h1-sub">vs H1 2025</div>
+      </div>
+      <div class="fc-card">
+        <div class="fc-card-label">Expected Growth Rate</div>
+        <div class="fc-card-value" id="fc-growth-value">—</div>
+        <div class="fc-card-sub" id="fc-growth-sub">vs H1 2025</div>
+      </div>
+      <div class="fc-card">
+        <div class="fc-card-label">Forecast Confidence</div>
+        <div style="margin-bottom:4px"><span class="fc-confidence-badge" id="fc-confidence-badge">—</span></div>
+        <div class="fc-card-sub">Based on revenue consistency</div>
+      </div>
+    </div>
+
+    <!-- Collapsible forecast assumptions -->
+    <div class="fc-assumptions-wrap" id="fc-assumptions" style="display:none">
+      <div class="fc-assumptions-toggle" onclick="toggleFcAssumptions()">
+        <span class="fc-assumptions-title">📋 Forecast Assumptions</span>
+        <span class="fc-chevron" id="fc-chevron">▼</span>
+      </div>
+      <div class="fc-assumptions-body" id="fc-assumptions-body"></div>
+    </div>
+
+    <!-- Single-year accuracy notice -->
+    <div class="fc-notice" id="fc-notice" style="display:none">
+      📌 Forecast accuracy improves with multi-year data — upload FY2024 files for better predictions
+    </div>
+
+    <div class="fc-powered">Generated by Claude AI + statistical trend analysis · For reference only</div>
+  </section>
+
   <!-- ── Section 3: Cost & Profitability ────────────────────────────────── -->
   <section class="section">
     <div class="section-header">
@@ -2920,6 +3105,181 @@
       .catch(() => {
         analysing.style.display = 'none';
         unavail.style.display   = '';
+      });
+  })();
+
+  // ── Revenue Forecast ─────────────────────────────────────────────────────
+  (function () {
+    var _fcData    = null;
+    var _scenario  = 'base';
+    var _chartInit = false;
+    var cfg = {responsive: true, displayModeBar: false};
+
+    function fmtMoney(v) {
+      if (v >= 1e6) return '$' + (v / 1e6).toFixed(1) + 'M';
+      if (v >= 1e3) return '$' + Math.round(v / 1e3) + 'K';
+      return '$' + Math.round(v);
+    }
+
+    function scenarioY(fc, s) {
+      return fc.map(function(f) {
+        return s === 'conservative' ? f.low : s === 'optimistic' ? f.high : f.base;
+      });
+    }
+
+    function buildTraces(data, scenario) {
+      var aX  = data.actual_months;
+      var aY  = data.actual_totals;
+      var fX  = data.forecast.map(function(f) { return f.month_label; });
+      var fY  = scenarioY(data.forecast, scenario);
+      var fLo = data.forecast.map(function(f) { return f.low; });
+      var fHi = data.forecast.map(function(f) { return f.high; });
+
+      var lastX = aX[aX.length - 1];
+      var lastY = aY[aY.length - 1];
+      var yMax  = Math.max.apply(null, aY.concat(fHi)) * 1.18;
+
+      var trBandHi = {
+        x: fX, y: fHi, type: 'scatter', mode: 'lines',
+        line: {color: 'transparent'}, showlegend: false, hoverinfo: 'skip'
+      };
+      var trBandLo = {
+        x: fX, y: fLo, type: 'scatter', mode: 'lines',
+        line: {color: 'transparent'},
+        fill: 'tonexty', fillcolor: 'rgba(107,140,201,0.15)',
+        showlegend: false, hoverinfo: 'skip'
+      };
+      var trActual = {
+        x: aX, y: aY, type: 'scatter', mode: 'lines+markers',
+        name: 'Actual',
+        line: {color: '#0f2744', width: 2.5},
+        marker: {color: '#0f2744', size: 5},
+        hovertemplate: '<b>%{x}</b><br>Revenue: $%{y:,.0f}<extra></extra>'
+      };
+      var trBridge = {
+        x: [lastX, fX[0]], y: [lastY, fY[0]],
+        type: 'scatter', mode: 'lines',
+        line: {color: '#0f2744', width: 2, dash: 'dot'},
+        showlegend: false, hoverinfo: 'skip'
+      };
+      var trForecast = {
+        x: fX, y: fY, type: 'scatter', mode: 'lines+markers',
+        name: 'Forecast',
+        line: {color: '#0f2744', width: 2, dash: 'dot'},
+        marker: {color: '#0f2744', size: 5, symbol: 'circle-open'},
+        hovertemplate: '<b>%{x}</b><br>Forecast: $%{y:,.0f}<extra></extra>'
+      };
+
+      var layout = {
+        margin: {l: 70, r: 20, t: 36, b: 50},
+        paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+        font: {family: 'Inter, system-ui, sans-serif', size: 11, color: '#64748b'},
+        legend: {orientation: 'h', x: 0, y: 1.1, font: {size: 11}},
+        xaxis: {tickfont: {size: 10}, gridcolor: '#f1f5f9', zeroline: false, tickangle: -30},
+        yaxis: {tickformat: '$,.0f', gridcolor: '#f1f5f9', zeroline: false, range: [0, yMax]},
+        shapes: [{
+          type: 'line', x0: lastX, x1: lastX, y0: 0, y1: yMax,
+          line: {color: '#94a3b8', width: 1.5, dash: 'dash'}
+        }],
+        annotations: [
+          {x: aX[Math.floor(aX.length / 2)], y: yMax * 0.96, text: 'Actuals',
+           showarrow: false, font: {size: 11, color: '#94a3b8'}},
+          {x: fX[Math.floor(fX.length / 2)], y: yMax * 0.96, text: 'Forecast',
+           showarrow: false, font: {size: 11, color: '#94a3b8'}}
+        ]
+      };
+
+      return {traces: [trBandHi, trBandLo, trActual, trBridge, trForecast], layout: layout};
+    }
+
+    function updateCards(data, scenario) {
+      var fc    = data.forecast;
+      var h1    = fc.reduce(function(s, f) {
+        return s + (scenario === 'conservative' ? f.low : scenario === 'optimistic' ? f.high : f.base);
+      }, 0);
+      var h1_25 = data.summary.h1_2025;
+      var gPct  = h1_25 > 0 ? ((h1 - h1_25) / h1_25 * 100) : 0;
+
+      document.getElementById('fc-h1-value').textContent = fmtMoney(h1);
+      document.getElementById('fc-h1-sub').textContent   = 'vs H1 2025 (' + fmtMoney(h1_25) + ')';
+
+      var sign = gPct >= 0 ? '+' : '';
+      document.getElementById('fc-growth-value').textContent  = sign + gPct.toFixed(1) + '%';
+      document.getElementById('fc-growth-sub').textContent    = gPct >= 0 ? 'Growth vs H1 2025' : 'Decline vs H1 2025';
+      document.getElementById('fc-growth-value').style.color  = gPct >= 0 ? '#0f2744' : '#ef4444';
+
+      var conf  = data.summary.confidence || 'Medium';
+      var badge = document.getElementById('fc-confidence-badge');
+      badge.textContent = conf;
+      badge.className   = 'fc-confidence-badge fc-confidence-' + conf.toLowerCase();
+    }
+
+    function render(data, scenario) {
+      var res = buildTraces(data, scenario);
+      if (!_chartInit) {
+        Plotly.newPlot('fc-chart', res.traces, res.layout, cfg);
+        _chartInit = true;
+      } else {
+        Plotly.react('fc-chart', res.traces, res.layout, cfg);
+      }
+      document.getElementById('fc-chart').style.display = '';
+      updateCards(data, scenario);
+      document.getElementById('fc-cards').style.display = 'grid';
+
+      // Assumptions
+      var hasReason = data.forecast.some(function(f) { return f.reasoning; });
+      if (hasReason) {
+        var body = document.getElementById('fc-assumptions-body');
+        body.innerHTML = data.forecast.map(function(f) {
+          return '<div class="fc-assumption-item"><span class="fc-assumption-month">'
+            + f.month_label + ':</span>'
+            + (f.reasoning || 'Trend-based projection.') + '</div>';
+        }).join('');
+        document.getElementById('fc-assumptions').style.display = '';
+      }
+
+      // Single-year notice
+      if (!data.has_prior_year) {
+        document.getElementById('fc-notice').style.display = '';
+      }
+    }
+
+    window.setFcScenario = function(s) {
+      _scenario = s;
+      ['conservative','base','optimistic'].forEach(function(sc) {
+        document.getElementById('fc-btn-' + sc).classList.toggle('active', sc === s);
+      });
+      if (_fcData) render(_fcData, s);
+    };
+
+    window.toggleFcAssumptions = function() {
+      var body = document.getElementById('fc-assumptions-body');
+      var icon = document.getElementById('fc-chevron');
+      var open = body.classList.toggle('open');
+      icon.classList.toggle('open', open);
+    };
+
+    fetch('/api/forecast/' + SESSION_ID)
+      .then(function(r) {
+        if (!r.ok) throw new Error('Server returned ' + r.status);
+        return r.json();
+      })
+      .then(function(data) {
+        document.getElementById('fc-loading').style.display = 'none';
+        if (data.error) {
+          var e = document.getElementById('fc-error');
+          e.textContent = '⚠ ' + data.error;
+          e.style.display = 'block';
+          return;
+        }
+        _fcData = data;
+        render(data, _scenario);
+      })
+      .catch(function() {
+        document.getElementById('fc-loading').style.display = 'none';
+        var e = document.getElementById('fc-error');
+        e.textContent = '⚠ Unable to generate forecast';
+        e.style.display = 'block';
       });
   })();
 
