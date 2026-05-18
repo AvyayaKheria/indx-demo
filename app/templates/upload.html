@@ -357,6 +357,23 @@
       margin-bottom: 14px;
       line-height: 1.5;
     }
+    /* ── Budget optional section ────────────────────────────────────────── */
+    .bud-section {
+      margin-top: 20px;
+      border-top: 1px solid var(--slate-200);
+      padding-top: 20px;
+    }
+    .bud-badge {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      background: #fff7ed;
+      color: #c2410c;
+      border: 1px solid #fed7aa;
+      border-radius: 4px;
+      padding: 2px 7px;
+    }
   </style>
 </head>
 <body>
@@ -442,6 +459,42 @@
         </div>
         {% endif %}
 
+        <!-- ── Budget (Optional) ──────────────────────────────────────────── -->
+        {% if slots_bud %}
+        <div class="bud-section" id="bud-section">
+          <div class="py-header" onclick="toggleBudSection()">
+            <div class="py-title-wrap">
+              <div class="slots-label" style="margin:0">Add Budget for Variance Analysis</div>
+              <span class="bud-badge">Optional</span>
+            </div>
+            <span class="py-toggle-icon" id="bud-icon">▾</span>
+          </div>
+          <div class="py-slots-wrap" id="bud-slots-wrap" style="display:none">
+            <p class="py-subtitle">
+              Upload FY2025 budget files to enable Budget vs Actuals tracking with variance analysis.
+              All five files are required — or skip this section to use the dashboard without budget comparison.
+            </p>
+            <div class="slots-label">Budget Files (FY2025 Plan) — all five must be .xlsx</div>
+            <div class="slots">
+              {% for key, filename, label, ncols, col_hint in slots_bud %}
+              <div class="slot" id="slot-{{ key }}">
+                <div class="slot-label">
+                  {{ label }}<br>
+                  <span class="slot-ext">(.xlsx) · {{ col_hint }}</span>
+                </div>
+                <div class="slot-right">
+                  <label class="file-btn" for="file-{{ key }}">Choose file</label>
+                  <input type="file" id="file-{{ key }}" name="{{ key }}" accept=".xlsx" />
+                  <span class="slot-filename" id="name-{{ key }}">No file chosen</span>
+                  <span class="slot-check">✓</span>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
         <button type="submit" class="generate-btn" id="gen-btn">
           <span id="gen-label">Generate Dashboard</span>
           <span class="btn-arrow">→</span>
@@ -499,6 +552,32 @@
 
   function togglePySection() {
     document.getElementById('py-section').classList.toggle('open');
+  }
+  {% endif %}
+
+  {% if slots_bud %}
+  {% for key, filename, label, ncols, col_hint in slots_bud %}
+  document.getElementById('file-{{ key }}').addEventListener('change', function() {
+    const slot   = document.getElementById('slot-{{ key }}');
+    const nameEl = document.getElementById('name-{{ key }}');
+    if (this.files.length > 0) {
+      nameEl.textContent = this.files[0].name;
+      nameEl.classList.add('chosen');
+      slot.classList.add('has-file');
+    } else {
+      nameEl.textContent = 'No file chosen';
+      nameEl.classList.remove('chosen');
+      slot.classList.remove('has-file');
+    }
+  });
+  {% endfor %}
+
+  function toggleBudSection() {
+    const wrap = document.getElementById('bud-slots-wrap');
+    const icon = document.getElementById('bud-icon');
+    const open = wrap.style.display === 'block';
+    wrap.style.display = open ? 'none' : 'block';
+    icon.style.transform = open ? '' : 'rotate(180deg)';
   }
   {% endif %}
 

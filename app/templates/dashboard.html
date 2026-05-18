@@ -640,6 +640,104 @@
       padding: 4px 0;
     }
 
+    /* ── Budget vs Actuals ──────────────────────────────────────────────── */
+    .bva-subtitle {
+      font-size: 13px;
+      color: var(--slate-500);
+      margin: -4px 0 20px;
+    }
+    .bva-cards-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    .bva-card {
+      border-radius: var(--radius);
+      border: 1px solid var(--slate-200);
+      padding: 16px 18px;
+      box-shadow: var(--shadow-sm);
+    }
+    .bva-fav   { background: #f0fdf4; border-color: #bbf7d0; }
+    .bva-unfav { background: #fff5f5; border-color: #fecaca; }
+    .bva-card-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--slate-500); margin-bottom: 6px; }
+    .bva-card-actual { font-size: 20px; font-weight: 700; color: var(--navy); letter-spacing: -.02em; margin-bottom: 3px; }
+    .bva-card-budget { font-size: 11.5px; color: var(--slate-500); margin-bottom: 6px; }
+    .bva-var { font-size: 12.5px; font-weight: 600; }
+    .bva-var-fav   { color: #166534; }
+    .bva-var-unfav { color: #991b1b; }
+    .chart-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--slate-700);
+      margin-bottom: 8px;
+      padding: 0 4px;
+    }
+    .bva-table-card {
+      background: var(--white);
+      border: 1px solid var(--slate-200);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      padding: 20px 24px;
+      margin-top: 16px;
+    }
+    .bva-table-title { font-size: 13px; font-weight: 600; color: var(--slate-700); margin-bottom: 14px; }
+    .bva-table-wrap { overflow-x: auto; }
+    .bva-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .bva-table thead th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--slate-500);
+      padding: 0 12px 10px;
+      border-bottom: 1px solid var(--slate-200);
+    }
+    .bva-table thead th:not(:first-child) { text-align: right; }
+    .bva-table tbody tr { border-bottom: 1px solid var(--slate-100); }
+    .bva-table tbody tr:last-child { border-bottom: none; }
+    .bva-row-fav   { background: #fafffe; }
+    .bva-row-unfav { background: #fffafa; }
+    .bva-item-name { padding: 9px 12px; color: var(--slate-700); font-weight: 500; }
+    .bva-num       { padding: 9px 12px; text-align: right; color: var(--slate-600); font-variant-numeric: tabular-nums; }
+    .bva-num-fav   { color: #15803d; font-weight: 600; }
+    .bva-num-unfav { color: #dc2626; font-weight: 600; }
+    .bva-status-badge { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 2px 8px; border-radius: 4px; }
+    .bva-status-ok   { background: #f0fdf4; color: #166534; }
+    .bva-status-warn { background: #fef2f2; color: #991b1b; }
+    .bva-analysis-wrap {
+      background: var(--white);
+      border: 1px solid var(--slate-200);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      padding: 20px 24px;
+      margin-top: 16px;
+    }
+    .bva-analysis-title { font-size: 14px; font-weight: 600; color: var(--slate-900); margin-bottom: 14px; }
+    .bva-analysis-loading { font-size: 13px; color: var(--slate-400); font-style: italic; }
+    .bva-analysis-err { font-size: 13px; color: #ef4444; }
+    .bva-analysis-cards { display: flex; flex-direction: column; gap: 12px; }
+    .bva-analysis-card {
+      padding: 14px 16px;
+      border-radius: 8px;
+      border-left: 4px solid;
+    }
+    .bva-ac-fav   { background: #f0fdf4; border-left-color: #22c55e; }
+    .bva-ac-unfav { background: #fff5f5; border-left-color: #ef4444; }
+    .bva-ac-item  { font-size: 13px; font-weight: 700; color: var(--navy); margin-bottom: 4px; }
+    .bva-ac-var   { font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+    .bva-ac-fav .bva-ac-var   { color: #166534; }
+    .bva-ac-unfav .bva-ac-var { color: #991b1b; }
+    .bva-ac-explain { font-size: 12.5px; color: var(--slate-600); line-height: 1.5; margin-bottom: 6px; }
+    .bva-ac-rec { font-size: 12px; color: var(--slate-700); font-style: italic; }
+    @media (max-width: 700px) {
+      .bva-cards-row { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 420px) {
+      .bva-cards-row { grid-template-columns: 1fr; }
+    }
+
     /* ── Revenue Forecast ───────────────────────────────────────────────── */
     .fc-subtitle {
       font-size: 13px;
@@ -1904,6 +2002,117 @@
     </div>
   </section>
 
+  <!-- ── Budget vs Actuals ────────────────────────────────────────────────── -->
+  {% if has_budget %}
+  <section class="section" id="bva-section">
+    <div class="section-header">
+      <span class="section-title">Budget vs Actuals</span>
+      <div class="section-line"></div>
+    </div>
+    <p class="bva-subtitle">Tracking performance against plan</p>
+
+    <!-- 4 variance summary cards -->
+    <div class="bva-cards-row">
+
+      <div class="bva-card {{ 'bva-fav' if budget_cards.revenue.favourable else 'bva-unfav' }}">
+        <div class="bva-card-label">Revenue</div>
+        <div class="bva-card-actual">${{ "{:,.0f}".format(budget_cards.revenue.actual) }}</div>
+        <div class="bva-card-budget">Budget: ${{ "{:,.0f}".format(budget_cards.revenue.budget) }}</div>
+        <div class="bva-var {{ 'bva-var-fav' if budget_cards.revenue.favourable else 'bva-var-unfav' }}">
+          {{ '+' if budget_cards.revenue.var_abs >= 0 else '' }}${{ "{:,.0f}".format(budget_cards.revenue.var_abs) }}
+          &nbsp;({{ '+' if budget_cards.revenue.var_pct >= 0 else '' }}{{ budget_cards.revenue.var_pct }}%)
+        </div>
+      </div>
+
+      <div class="bva-card {{ 'bva-fav' if budget_cards.gross_profit.favourable else 'bva-unfav' }}">
+        <div class="bva-card-label">Gross Profit</div>
+        <div class="bva-card-actual">${{ "{:,.0f}".format(budget_cards.gross_profit.actual) }}</div>
+        <div class="bva-card-budget">Budget: ${{ "{:,.0f}".format(budget_cards.gross_profit.budget) }}</div>
+        <div class="bva-var {{ 'bva-var-fav' if budget_cards.gross_profit.favourable else 'bva-var-unfav' }}">
+          {{ '+' if budget_cards.gross_profit.var_abs >= 0 else '' }}${{ "{:,.0f}".format(budget_cards.gross_profit.var_abs) }}
+          &nbsp;({{ '+' if budget_cards.gross_profit.var_pct >= 0 else '' }}{{ budget_cards.gross_profit.var_pct }}%)
+        </div>
+      </div>
+
+      <div class="bva-card {{ 'bva-fav' if budget_cards.total_costs.favourable else 'bva-unfav' }}">
+        <div class="bva-card-label">Total Costs</div>
+        <div class="bva-card-actual">${{ "{:,.0f}".format(budget_cards.total_costs.actual) }}</div>
+        <div class="bva-card-budget">Budget: ${{ "{:,.0f}".format(budget_cards.total_costs.budget) }}</div>
+        <div class="bva-var {{ 'bva-var-fav' if budget_cards.total_costs.favourable else 'bva-var-unfav' }}">
+          {{ '+' if budget_cards.total_costs.var_abs >= 0 else '' }}${{ "{:,.0f}".format(budget_cards.total_costs.var_abs) }}
+          &nbsp;({{ '+' if budget_cards.total_costs.var_pct >= 0 else '' }}{{ budget_cards.total_costs.var_pct }}%)
+        </div>
+      </div>
+
+      <div class="bva-card {{ 'bva-fav' if budget_cards.net_profit.favourable else 'bva-unfav' }}">
+        <div class="bva-card-label">Net Profit</div>
+        <div class="bva-card-actual">${{ "{:,.0f}".format(budget_cards.net_profit.actual) }}</div>
+        <div class="bva-card-budget">Budget: ${{ "{:,.0f}".format(budget_cards.net_profit.budget) }}</div>
+        <div class="bva-var {{ 'bva-var-fav' if budget_cards.net_profit.favourable else 'bva-var-unfav' }}">
+          {{ '+' if budget_cards.net_profit.var_abs >= 0 else '' }}${{ "{:,.0f}".format(budget_cards.net_profit.var_abs) }}
+          &nbsp;({{ '+' if budget_cards.net_profit.var_pct >= 0 else '' }}{{ budget_cards.net_profit.var_pct }}%)
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Monthly Revenue BvA chart -->
+    <div class="chart-card">
+      <div class="chart-title">Monthly Revenue — Actual vs Budget</div>
+      <div class="chart-plot" id="chart-bva-rev"></div>
+    </div>
+
+    <!-- Variance table -->
+    <div class="bva-table-card">
+      <div class="bva-table-title">P&amp;L Variance Analysis</div>
+      <div class="bva-table-wrap">
+        <table class="bva-table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Budget</th>
+              <th>Actual</th>
+              <th>Variance ($)</th>
+              <th>Variance (%)</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in budget_var_rows %}
+            <tr class="{{ 'bva-row-fav' if row.favourable else 'bva-row-unfav' }}">
+              <td class="bva-item-name">{{ row.item }}</td>
+              <td class="bva-num">${{ "{:,.0f}".format(row.budget) }}</td>
+              <td class="bva-num">${{ "{:,.0f}".format(row.actual) }}</td>
+              <td class="bva-num {{ 'bva-num-fav' if row.favourable else 'bva-num-unfav' }}">
+                {{ '+' if row.var_abs >= 0 else '' }}${{ "{:,.0f}".format(row.var_abs) }}
+              </td>
+              <td class="bva-num {{ 'bva-num-fav' if row.favourable else 'bva-num-unfav' }}">
+                {{ '+' if row.var_pct >= 0 else '' }}{{ row.var_pct }}%
+              </td>
+              <td>
+                <span class="bva-status-badge {{ 'bva-status-ok' if row.status == 'On Track' else 'bva-status-warn' }}">
+                  {{ row.status }}
+                </span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Claude variance analysis (loaded async) -->
+    <div class="bva-analysis-wrap">
+      <div class="bva-analysis-title">AI Variance Analysis</div>
+      <div id="bva-analysis-loading" class="bva-analysis-loading">Analysing variances…</div>
+      <div id="bva-analysis-cards" class="bva-analysis-cards" style="display:none"></div>
+      <div id="bva-analysis-err" class="bva-analysis-err" style="display:none"></div>
+      <div class="ai-disclaimer" style="margin-top:12px">Generated by Claude AI · For reference only</div>
+    </div>
+
+  </section>
+  {% endif %}
+
   <!-- ── Anomalies & Flags ──────────────────────────────────────────────── -->
   <section class="section" id="anomalies-section">
     <div class="anomaly-card">
@@ -2398,6 +2607,10 @@
   Plotly.newPlot('chart-cost-mix', {{ charts.cost_mix | safe }},      {}, cfg);
   Plotly.newPlot('chart-bs',       {{ charts.balance_sheet | safe }}, {}, cfg);
   Plotly.newPlot('chart-capital',  {{ charts.capital | safe }},       {}, cfg);
+
+  {% if has_budget %}
+  Plotly.newPlot('chart-bva-rev', {{ charts_budget.monthly_rev | safe }}, {}, cfg);
+  {% endif %}
 
   {% if has_prior_year %}
   Plotly.newPlot('chart-revenue-cmp',  {{ charts_compare.revenue | safe }},       {}, cfg);
@@ -3283,6 +3496,46 @@
         e.style.display = 'block';
       });
   })();
+
+  // ── Budget vs Actuals — async Claude analysis ─────────────────────────────
+  {% if has_budget %}
+  (function loadBvaAnalysis() {
+    const loading  = document.getElementById('bva-analysis-loading');
+    const cards    = document.getElementById('bva-analysis-cards');
+    const errEl    = document.getElementById('bva-analysis-err');
+
+    fetch('/api/bva-analysis/' + SESSION_ID)
+      .then(function(r) { if (!r.ok) throw new Error('Server ' + r.status); return r.json(); })
+      .then(function(data) {
+        loading.style.display = 'none';
+        if (data.error && (!data.analysis || data.analysis.length === 0)) {
+          errEl.textContent = '⚠ ' + data.error;
+          errEl.style.display = 'block';
+          return;
+        }
+        var items = data.analysis || [];
+        if (items.length === 0) { loading.textContent = 'No significant variances detected.'; loading.style.display = ''; return; }
+        cards.style.display = 'flex';
+        cards.innerHTML = items.map(function(a) {
+          var fav = a.is_favourable;
+          var cls = fav ? 'bva-ac-fav' : 'bva-ac-unfav';
+          var sign = a.variance_abs >= 0 ? '+' : '';
+          var varPct = a.variance_pct != null ? ' (' + (a.variance_pct >= 0 ? '+' : '') + a.variance_pct.toFixed(1) + '%)' : '';
+          return '<div class="bva-analysis-card ' + cls + '">'
+            + '<div class="bva-ac-item">' + (a.item || '') + '</div>'
+            + '<div class="bva-ac-var">' + sign + '$' + Math.abs(a.variance_abs || 0).toLocaleString() + varPct + (fav ? ' — Favourable' : ' — Unfavourable') + '</div>'
+            + '<div class="bva-ac-explain">' + (a.explanation || '') + '</div>'
+            + '<div class="bva-ac-rec">💡 ' + (a.recommendation || '') + '</div>'
+            + '</div>';
+        }).join('');
+      })
+      .catch(function() {
+        loading.style.display = 'none';
+        errEl.textContent = '⚠ Unable to load variance analysis';
+        errEl.style.display = 'block';
+      });
+  })();
+  {% endif %}
 
   // ── Anomalies & Flags ────────────────────────────────────────────────────
   (function loadAnomalies() {

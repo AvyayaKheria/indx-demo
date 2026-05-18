@@ -51,6 +51,20 @@ FILE_SLOTS_PY = [
      "Account, Debit, Credit"),
 ]
 
+# Budget upload slots — optional, same structure
+FILE_SLOTS_BUD = [
+    ("revenue_bud",       "revenue.xlsx",       "Revenue Budget",       5,
+     "Month, Dine-In, Delivery, Catering, Total"),
+    ("costs_bud",         "costs.xlsx",         "Costs Budget",         6,
+     "Month, COGS, Payroll, Rent, Marketing, Total"),
+    ("pl_bud",            "pl.xlsx",            "P&L Budget",           2,
+     "Item, Amount"),
+    ("balance_sheet_bud", "balance_sheet.xlsx", "Balance Sheet Budget", 2,
+     "Item, Amount"),
+    ("trial_balance_bud", "trial_balance.xlsx", "Trial Balance Budget", 3,
+     "Account, Debit, Credit"),
+]
+
 # ── Design tokens ─────────────────────────────────────────────────────────────
 NAVY   = "#0f2744"
 TEAL   = "#0d9488"
@@ -257,6 +271,7 @@ def _has_extracted_json(data_dir) -> bool:
 # Session data is immutable after upload so a simple dict is safe.
 _DASH_CACHE: dict = {}
 _PY_CACHE:   dict = {}   # key: str(data_dir) → (kpis_py, charts_compare, cost_legend_py)
+_BUD_CACHE:  dict = {}   # key: str(data_dir)+"__budget__" → (pl_bud, rev_df_bud, cost_df_bud, charts_budget)
 
 
 def _cache_key(data_dir) -> str:
@@ -809,11 +824,180 @@ def _build_prior_year_data(data_dir, prior_year_dir):
     return result
 
 
+# ── Demo budget generator ─────────────────────────────────────────────────────
+
+def _generate_demo_budget(rev_df_cy, cost_df_cy, pl_cy):
+    """Return (rev_df_bud, cost_df_bud, pl_bud) as synthetic FY2025 budget data.
+    Budget was slightly optimistic — creates realistic variances for demo."""
+    # Revenue: budget was 8% higher than actual (optimistic planning)
+    rev_df_bud = rev_df_cy.copy()
+    for col in [c for c in rev_df_bud.columns if c != "Month"]:
+        rev_df_bud[col] = (rev_df_bud[col] * 1.08).round(0).astype(int)
+
+    # Costs: per-category budget ratios vs actual
+    cost_df_bud = cost_df_cy.copy()
+    _BUD_COST_RATIOS = {
+        ('cogs', 'cost of good', 'cost of sale'): 0.95,       # actual 5% over budget
+        ('payroll', 'wage', 'staff', 'salary', 'labour', 'labor'): 0.97,  # actual 3% over
+        ('rent', 'lease', 'occupancy'): 1.00,                  # on budget
+        ('marketing', 'advertis', 'promo'): 1.10,              # actual 10% under budget
+    }
+    for col in [c for c in cost_df_bud.columns if c != "Month"]:
+        cl = col.lower()
+        ratio = 0.96   # default: actuals slightly above budget
+        for keys, r in _BUD_COST_RATIOS.items():
+            if any(k in cl for k in keys):
+                ratio = r
+                break
+        cost_df_bud[col] = (cost_df_bud[col] * ratio).round(0).astype(int)
+
+    # P&L budget
+    pl_bud = {}
+    for k, v in pl_cy.items():
+        try:
+            fv = float(v)
+            kl = k.lower()
+            if any(x in kl for x in ('total revenue', 'revenue', 'sales')):
+                ratio = 1.08
+            elif any(x in kl for x in ('net profit', 'npat', 'profit after tax')):
+                ratio = 1.20   # budgeted higher profit
+            elif any(x in kl for x in ('ebitda',)):
+                ratio = 1.15
+            elif any(x in kl for x in ('gross profit',)):
+                ratio = 1.10
+            elif any(x in kl for x in ('cogs', 'cost of good', 'cost of sale')):
+                ratio = 0.95 if fv > 0 else 1.05
+            elif any(x in kl for x in ('payroll', 'wage', 'staff', 'salary', 'labour')):
+                ratio = 0.97 if fv > 0 else 1.03
+            elif any(x in kl for x in ('marketing', 'advertis', 'promo')):
+                ratio = 1.10 if fv > 0 else 0.90
+            elif any(x in kl for x in ('rent', 'lease', 'occupancy')):
+                ratio = 1.00
+            else:
+                ratio = 1.0
+            pl_bud[k] = round(fv * ratio, 0)
+        except (TypeError, ValueError):
+            pl_bud[k] = v
+
+    return rev_df_bud, cost_df_bud, pl_bud
+
+
+# ── Budget vs Actuals data builder ────────────────────────────────────────────
+
+def _build_budget_data(data_dir, budget_dir):
+    """
+    Load or generate FY2025 budget data and build comparison chart.
+    Returns (pl_bud, rev_df_bud, cost_df_bud, charts_budget).
+    """
+    ck = _cache_key(data_dir) + "__budget__"
+    if ck in _BUD_CACHE:
+        return _BUD_CACHE[ck]
+
+    # Load current-year raw data
+    if _has_extracted_json(data_dir):
+        rev_df_cy  = load_revenue_json(data_dir)
+        cost_df_cy = load_costs_json(data_dir)
+        pl_cy      = load_pl_json(data_dir)
+    else:
+        rev_df_cy  = load_revenue(data_dir)
+        cost_df_cy = load_costs(data_dir)
+        pl_cy      = load_pl(data_dir)
+
+    # Reconcile CY revenue to P&L total
+    pl_rev_cy = pl_cy.get("Total Revenue") or 0
+    raw_cy = rev_df_cy["Total"].sum()
+    if raw_cy > 0 and pl_rev_cy > 0:
+        s = pl_rev_cy / raw_cy
+        for col in [c for c in rev_df_cy.columns if c != "Month"]:
+            rev_df_cy[col] = (rev_df_cy[col] * s).round(0).astype(int)
+
+    # Load or generate budget data
+    if budget_dir and Path(budget_dir).exists():
+        bd = Path(budget_dir)
+        if _has_extracted_json(bd):
+            rev_df_bud  = load_revenue_json(bd)
+            cost_df_bud = load_costs_json(bd)
+            pl_bud      = load_pl_json(bd)
+        else:
+            rev_df_bud  = load_revenue(bd)
+            cost_df_bud = load_costs(bd)
+            pl_bud      = load_pl(bd)
+    else:
+        rev_df_bud, cost_df_bud, pl_bud = _generate_demo_budget(rev_df_cy, cost_df_cy, pl_cy)
+
+    # ── Monthly Revenue BvA chart (grouped bars + variance line) ─────────────
+    months        = rev_df_cy["Month"].tolist()
+    actual_totals = [int(v) for v in rev_df_cy["Total"].tolist()]
+    budget_totals = [int(v) for v in rev_df_bud["Total"].tolist()]
+    variances     = [a - b for a, b in zip(actual_totals, budget_totals)]
+    var_colors    = [GREEN if v >= 0 else RED for v in variances]
+
+    fig_bva = go.Figure()
+    fig_bva.add_trace(go.Bar(
+        name="Actual", x=months, y=actual_totals,
+        marker_color=NAVY, marker_line_width=0,
+        hovertemplate="<b>%{x}</b><br>Actual: $%{y:,.0f}<extra></extra>",
+    ))
+    fig_bva.add_trace(go.Bar(
+        name="Budget", x=months, y=budget_totals,
+        marker_color=TEAL, marker_line_width=0,
+        hovertemplate="<b>%{x}</b><br>Budget: $%{y:,.0f}<extra></extra>",
+    ))
+    fig_bva.add_trace(go.Scatter(
+        name="Variance $", x=months, y=variances,
+        mode="lines+markers",
+        line=dict(color="#f59e0b", width=2),
+        marker=dict(color=var_colors, size=7, line=dict(width=1, color="white")),
+        yaxis="y2",
+        hovertemplate="<b>%{x}</b><br>Variance: $%{y:,.0f}<extra></extra>",
+    ))
+    fig_bva.update_layout(
+        barmode="group",
+        margin=dict(l=60, r=70, t=10, b=40),
+        paper_bgcolor="transparent", plot_bgcolor="transparent",
+        font=_FONT, hoverlabel=_HOVER,
+        legend=dict(orientation="h", x=0, y=1.08, font=dict(size=11)),
+        xaxis=dict(gridcolor=GRID, zeroline=False),
+        yaxis=dict(tickformat="$,.0f", gridcolor=GRID, zeroline=False),
+        yaxis2=dict(
+            overlaying="y", side="right",
+            tickformat="$,.0f",
+            zeroline=True, zerolinecolor="#94a3b8", zerolinewidth=1,
+            showgrid=False, title="Variance",
+        ),
+    )
+    charts_budget = {"monthly_rev": plotly.io.to_json(fig_bva, remove_uids=True)}
+
+    result = (pl_bud, rev_df_bud, cost_df_bud, charts_budget)
+    _BUD_CACHE[ck] = result
+    return result
+
+
+# ── System prompt for BvA Claude analysis ────────────────────────────────────
+
+_BVA_SYSTEM = (
+    "You are a CFO analysing budget variances.\n\n"
+    "You will be given budget vs actual figures for a business.\n"
+    "Identify the top 3 most significant variances (by absolute dollar amount), "
+    "explain the likely cause of each, and recommend a specific corrective action.\n\n"
+    "Return a JSON array of exactly 3 objects with this structure:\n"
+    "[{\"item\": \"Revenue\", \"variance_abs\": -45000, \"variance_pct\": -4.2, "
+    "\"is_favourable\": false, \"explanation\": \"two sentences\", "
+    "\"recommendation\": \"one actionable sentence\"}]\n\n"
+    "Rules:\n"
+    "- Be specific and reference actual numbers from the data\n"
+    "- explanation: 2 sentences max — what happened and likely cause\n"
+    "- recommendation: 1 sentence — specific corrective action\n"
+    "- is_favourable: true if variance benefits the business (revenue above budget OR costs below budget)\n"
+    "- Return ONLY valid JSON array — no markdown, no fences, no text outside the array"
+)
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @main.route("/")
 def index():
-    return render_template("upload.html", slots=FILE_SLOTS, slots_py=FILE_SLOTS_PY)
+    return render_template("upload.html", slots=FILE_SLOTS, slots_py=FILE_SLOTS_PY, slots_bud=FILE_SLOTS_BUD)
 
 
 @main.route("/upload", methods=["POST"])
@@ -837,7 +1021,7 @@ def upload():
     if errors:
         shutil.rmtree(session_dir, ignore_errors=True)
         return render_template("upload.html", slots=FILE_SLOTS,
-                               slots_py=FILE_SLOTS_PY, errors=errors)
+                               slots_py=FILE_SLOTS_PY, slots_bud=FILE_SLOTS_BUD, errors=errors)
 
     # ── Step 2b: Save prior-year files if provided (all optional) ────────────
     prior_year_dir = session_dir / "prior_year"
@@ -846,6 +1030,14 @@ def upload():
         if f and f.filename and f.filename.lower().endswith(".xlsx"):
             prior_year_dir.mkdir(exist_ok=True)
             f.save(prior_year_dir / filename)
+
+    # ── Step 2c: Save budget files if provided (all optional) ────────────
+    budget_dir = session_dir / "budget"
+    for key, filename, label, _ncols, _hint in FILE_SLOTS_BUD:
+        f = request.files.get(key)
+        if f and f.filename and f.filename.lower().endswith(".xlsx"):
+            budget_dir.mkdir(exist_ok=True)
+            f.save(budget_dir / filename)
 
     # ── Step 3: Go straight to dashboard (direct Excel loaders, no AI) ──────────
     # AI extraction is intentionally disabled in the upload flow — it caused
@@ -884,7 +1076,7 @@ def dashboard(session_id):
         kpis, charts, cost_legend = _build_dashboard_data(data_dir)
     except Exception as e:
         return render_template("upload.html", slots=FILE_SLOTS,
-                               slots_py=FILE_SLOTS_PY,
+                               slots_py=FILE_SLOTS_PY, slots_bud=FILE_SLOTS_BUD,
                                errors=[f"Could not generate dashboard: {e}"])
 
     # ── Prior-year comparison ─────────────────────────────────────────────────
@@ -930,6 +1122,91 @@ def dashboard(session_id):
         except Exception:
             has_prior_year = False   # silently degrade
 
+    # ── Budget vs Actuals ─────────────────────────────────────────────────────
+    has_budget      = False
+    budget_cards    = {}
+    budget_var_rows = []
+    charts_budget   = {}
+
+    budget_dir = (data_dir / "budget") if data_dir else None
+    if session_id == "demo" or (budget_dir and budget_dir.exists()):
+        try:
+            pl_bud, rev_df_bud, cost_df_bud, charts_budget = _build_budget_data(
+                data_dir, budget_dir
+            )
+            has_budget = True
+
+            # ── Variance summary cards ────────────────────────────────────────
+            def _var(actual, budget_val):
+                budget_val = float(budget_val) if budget_val else 0.0
+                var_abs = actual - budget_val
+                var_pct = round(var_abs / abs(budget_val) * 100, 1) if budget_val else 0.0
+                return {"actual": actual, "budget": budget_val,
+                        "var_abs": var_abs, "var_pct": var_pct}
+
+            act_rev = kpis.get('total_revenue', 0) or 0
+            act_gp  = kpis.get('gross_profit', 0) or 0
+            act_np  = kpis.get('net_profit', 0) or 0
+            # Total costs: revenue minus gross profit (approx)
+            act_tc  = act_rev - act_gp
+
+            bud_rev = float(pl_bud.get('Total Revenue') or 0)
+            bud_gp  = float(pl_bud.get('Gross Profit') or 0)
+            bud_np  = float(pl_bud.get('Net Profit After Tax') or pl_bud.get('Net Profit') or 0)
+            bud_tc  = bud_rev - bud_gp if bud_gp else 0.0
+
+            rv = _var(act_rev, bud_rev); rv['favourable'] = act_rev >= bud_rev
+            gv = _var(act_gp,  bud_gp);  gv['favourable'] = act_gp  >= bud_gp
+            tc = _var(act_tc,  bud_tc);  tc['favourable'] = act_tc  <= bud_tc  # lower costs = good
+            nv = _var(act_np,  bud_np);  nv['favourable'] = act_np  >= bud_np
+            budget_cards = {'revenue': rv, 'gross_profit': gv, 'total_costs': tc, 'net_profit': nv}
+
+            # ── Variance table (all shared P&L line items) ────────────────────
+            if _has_extracted_json(data_dir):
+                pl_actual = load_pl_json(data_dir)
+            else:
+                pl_actual = load_pl(data_dir)
+
+            _COST_KW = ('cost', 'expense', 'payroll', 'wage', 'salary', 'staff',
+                        'rent', 'lease', 'marketing', 'advertis', 'depreci',
+                        'amort', 'interest', 'admin', 'overhead', 'labour', 'labor')
+
+            rows = []
+            for item, act_val in pl_actual.items():
+                if item not in pl_bud:
+                    continue
+                try:
+                    av = float(act_val or 0)
+                    bv = float(pl_bud[item] or 0)
+                except (TypeError, ValueError):
+                    continue
+                if av == 0 and bv == 0:
+                    continue
+                var_abs = av - bv
+                var_pct = round(var_abs / abs(bv) * 100, 1) if bv else 0.0
+                is_cost = any(k in item.lower() for k in _COST_KW)
+                # Favourable: revenue/profit above budget OR cost below budget
+                favourable = (not is_cost and av >= bv) or (is_cost and av <= bv)
+                if is_cost:
+                    status = "On Track" if av <= bv else "Over Budget"
+                else:
+                    status = "On Track" if av >= bv else "Below Target"
+                rows.append({
+                    'item': item,
+                    'budget': bv,
+                    'actual': av,
+                    'var_abs': var_abs,
+                    'var_pct': var_pct,
+                    'favourable': favourable,
+                    'status': status,
+                    'sort_key': abs(var_abs),
+                })
+            rows.sort(key=lambda r: r['sort_key'], reverse=True)
+            budget_var_rows = rows[:15]   # top 15 by magnitude
+
+        except Exception:
+            has_budget = False   # silently degrade
+
     return render_template(
         "dashboard.html",
         kpis=kpis, charts=charts, cost_legend=cost_legend,
@@ -939,6 +1216,10 @@ def dashboard(session_id):
         charts_compare=charts_compare,
         cost_legend_py=cost_legend_py,
         kpi_compare=kpi_compare,
+        has_budget=has_budget,
+        budget_cards=budget_cards,
+        budget_var_rows=budget_var_rows,
+        charts_budget=charts_budget,
     )
 
 
@@ -1576,3 +1857,89 @@ def api_anomalies(session_id):
         return jsonify({"anomalies": [], "error": f"Claude error: {exc}"}), 500
 
     return jsonify({"anomalies": anomalies, "error": None})
+
+
+@main.route("/api/bva-analysis/<session_id>")
+def api_bva_analysis(session_id):
+    if session_id == "demo":
+        data_dir = None
+    else:
+        session_dir = UPLOAD_DIR / session_id
+        if not session_dir.exists():
+            return jsonify({"analysis": [], "error": "Session not found"}), 404
+        data_dir = session_dir
+
+    try:
+        kpis, _, _ = _build_dashboard_data(data_dir)
+    except Exception as exc:
+        return jsonify({"analysis": [], "error": f"Could not load data: {exc}"}), 500
+
+    budget_dir = (data_dir / "budget") if data_dir else None
+    try:
+        pl_bud, rev_df_bud, cost_df_bud, _ = _build_budget_data(data_dir, budget_dir)
+    except Exception as exc:
+        return jsonify({"analysis": [], "error": f"Budget data error: {exc}"}), 500
+
+    # Build variance summary for Claude
+    actual_rev = kpis.get('total_revenue', 0) or 0
+    budget_rev = float(pl_bud.get('Total Revenue') or 0)
+    actual_gp  = kpis.get('gross_profit', 0) or 0
+    budget_gp  = float(pl_bud.get('Gross Profit') or 0)
+    actual_np  = kpis.get('net_profit', 0) or 0
+    budget_np  = float(pl_bud.get('Net Profit After Tax') or pl_bud.get('Net Profit') or 0)
+
+    context = (
+        f"Budget vs Actual — FY2025\n\n"
+        f"Revenue:      Actual ${actual_rev:,.0f}  |  Budget ${budget_rev:,.0f}  |  Variance ${actual_rev - budget_rev:,.0f}\n"
+        f"Gross Profit: Actual ${actual_gp:,.0f}  |  Budget ${budget_gp:,.0f}  |  Variance ${actual_gp - budget_gp:,.0f}\n"
+        f"Net Profit:   Actual ${actual_np:,.0f}  |  Budget ${budget_np:,.0f}  |  Variance ${actual_np - budget_np:,.0f}\n\n"
+    )
+    # Add monthly revenue variance
+    try:
+        if _has_extracted_json(data_dir):
+            rev_df_cy = load_revenue_json(data_dir)
+        else:
+            rev_df_cy = load_revenue(data_dir)
+        months = rev_df_cy["Month"].tolist()
+        act_t  = rev_df_cy["Total"].tolist()
+        bud_t  = rev_df_bud["Total"].tolist()
+        context += "Monthly Revenue Variance:\n"
+        for m, a, b in zip(months, act_t, bud_t):
+            context += f"  {m}: Actual ${float(a):,.0f}  Budget ${float(b):,.0f}  Var ${float(a)-float(b):,.0f}\n"
+    except Exception:
+        pass
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return jsonify({"analysis": [], "error": "ANTHROPIC_API_KEY not configured"}), 503
+
+    try:
+        import anthropic as _ant, json as _json
+        client = _ant.Anthropic(api_key=api_key)
+        from .insights import _best_model
+        model_id, err = _best_model(client)
+    except Exception as exc:
+        return jsonify({"analysis": [], "error": str(exc)}), 500
+
+    if not model_id:
+        return jsonify({"analysis": [], "error": err}), 503
+
+    try:
+        msg = client.messages.create(
+            model=model_id,
+            max_tokens=800,
+            system=_BVA_SYSTEM,
+            messages=[{"role": "user", "content": context + "\nAnalyse these budget variances now."}],
+        )
+        raw = msg.content[0].text.strip()
+        if "```" in raw:
+            start = raw.find("[")
+            end   = raw.rfind("]") + 1
+            raw   = raw[start:end] if start != -1 else raw
+        analysis = _json.loads(raw)
+        if not isinstance(analysis, list):
+            analysis = []
+    except Exception as exc:
+        return jsonify({"analysis": [], "error": f"Claude error: {exc}"}), 500
+
+    return jsonify({"analysis": analysis, "error": None})
