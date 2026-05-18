@@ -1861,85 +1861,106 @@ def api_anomalies(session_id):
 
 @main.route("/api/bva-analysis/<session_id>")
 def api_bva_analysis(session_id):
+    # Always return HTTP 200 — errors go in the JSON "error" field so the
+    # frontend can display them rather than hitting the generic .catch() message.
     if session_id == "demo":
         data_dir = None
     else:
         session_dir = UPLOAD_DIR / session_id
         if not session_dir.exists():
-            return jsonify({"analysis": [], "error": "Session not found"}), 404
+            return jsonify({"analysis": [], "error": "Session not found"})
         data_dir = session_dir
 
     try:
         kpis, _, _ = _build_dashboard_data(data_dir)
     except Exception as exc:
-        return jsonify({"analysis": [], "error": f"Could not load data: {exc}"}), 500
+        return jsonify({"analysis": [], "error": f"Could not load data: {exc}"})
 
     budget_dir = (data_dir / "budget") if data_dir else None
     try:
         pl_bud, rev_df_bud, cost_df_bud, _ = _build_budget_data(data_dir, budget_dir)
     except Exception as exc:
-        return jsonify({"analysis": [], "error": f"Budget data error: {exc}"}), 500
+        return jsonify({"analysis": [], "error": f"Budget data error: {exc}"})
 
-    # Build variance summary for Claude
-    actual_rev = kpis.get('total_revenue', 0) or 0
-    budget_rev = float(pl_bud.get('Total Revenue') or 0)
-    actual_gp  = kpis.get('gross_profit', 0) or 0
-    budget_gp  = float(pl_bud.get('Gross Profit') or 0)
-    actual_np  = kpis.get('net_profit', 0) or 0
-    budget_np  = float(pl_bud.get('Net Profit After Tax') or pl_bud.get('Net Profit') or 0)
+    # ── Build natural-language variance sentences (one per line item) ─────────
+    variance_parts = []
 
-    context = (
-        f"Budget vs Actual — FY2025\n\n"
-        f"Revenue:      Actual ${actual_rev:,.0f}  |  Budget ${budget_rev:,.0f}  |  Variance ${actual_rev - budget_rev:,.0f}\n"
-        f"Gross Profit: Actual ${actual_gp:,.0f}  |  Budget ${budget_gp:,.0f}  |  Variance ${actual_gp - budget_gp:,.0f}\n"
-        f"Net Profit:   Actual ${actual_np:,.0f}  |  Budget ${budget_np:,.0f}  |  Variance ${actual_np - budget_np:,.0f}\n\n"
-    )
-    # Add monthly revenue variance
-    try:
-        if _has_extracted_json(data_dir):
-            rev_df_cy = load_revenue_json(data_dir)
+    def _add(label, actual, budget_val, is_cost=False):
+        bv = float(budget_val or 0)
+        if not bv:
+            return
+        av  = float(actual or 0)
+        var = av - bv
+        pct = round(var / abs(bv) * 100, 1)
+        if is_cost:
+            word = "over" if var > 0 else "under"
         else:
-            rev_df_cy = load_revenue(data_dir)
-        months = rev_df_cy["Month"].tolist()
-        act_t  = rev_df_cy["Total"].tolist()
-        bud_t  = rev_df_bud["Total"].tolist()
-        context += "Monthly Revenue Variance:\n"
-        for m, a, b in zip(months, act_t, bud_t):
-            context += f"  {m}: Actual ${float(a):,.0f}  Budget ${float(b):,.0f}  Var ${float(a)-float(b):,.0f}\n"
+            word = "above" if var > 0 else "below"
+        variance_parts.append(
+            f"{label} is ${abs(var):,.0f} {word} budget ({pct:+.1f}%)"
+        )
+
+    _add("Revenue",      kpis.get('total_revenue', 0), pl_bud.get('Total Revenue'))
+    _add("Gross Profit", kpis.get('gross_profit',  0), pl_bud.get('Gross Profit'))
+
+    # Per cost-category variances from the monthly cost DataFrames
+    try:
+        cost_df_cy = load_costs_json(data_dir) if _has_extracted_json(data_dir) else load_costs(data_dir)
+        for col in [c for c in cost_df_cy.columns if c not in ("Month", "Total")]:
+            if col in cost_df_bud.columns:
+                _add(col,
+                     int(cost_df_cy[col].sum()),
+                     int(cost_df_bud[col].sum()),
+                     is_cost=True)
     except Exception:
         pass
 
+    _add("Net Profit",
+         kpis.get('net_profit', 0),
+         pl_bud.get('Net Profit After Tax') or pl_bud.get('Net Profit'))
+
+    variance_text = "; ".join(variance_parts) if variance_parts else "no variance data available"
+
+    # ── Claude API call ────────────────────────────────────────────────────────
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
-        return jsonify({"analysis": [], "error": "ANTHROPIC_API_KEY not configured"}), 503
+        return jsonify({"analysis": [], "error": "ANTHROPIC_API_KEY not configured"})
 
     try:
         import anthropic as _ant, json as _json
-        client = _ant.Anthropic(api_key=api_key)
+        client   = _ant.Anthropic(api_key=api_key)
         from .insights import _best_model
         model_id, err = _best_model(client)
+        if not model_id:
+            return jsonify({"analysis": [], "error": err})
     except Exception as exc:
-        return jsonify({"analysis": [], "error": str(exc)}), 500
+        return jsonify({"analysis": [], "error": str(exc)})
 
-    if not model_id:
-        return jsonify({"analysis": [], "error": err}), 503
+    prompt = (
+        "You are a CFO analysing budget variances for a company. "
+        f"Here are the key variances: {variance_text}. "
+        "Identify the top 3 most significant variances, explain the likely business causes, "
+        "and provide one specific corrective action for each. "
+        'Return ONLY a JSON array with exactly 3 objects, no markdown, no fences: '
+        '[{"variance": "string", "explanation": "string", "recommendation": "string"}]'
+    )
 
     try:
         msg = client.messages.create(
             model=model_id,
-            max_tokens=800,
-            system=_BVA_SYSTEM,
-            messages=[{"role": "user", "content": context + "\nAnalyse these budget variances now."}],
+            max_tokens=700,
+            messages=[{"role": "user", "content": prompt}],
         )
         raw = msg.content[0].text.strip()
-        if "```" in raw:
-            start = raw.find("[")
-            end   = raw.rfind("]") + 1
-            raw   = raw[start:end] if start != -1 else raw
+        # Robustly extract the JSON array regardless of surrounding text/fences
+        start = raw.find("[")
+        end   = raw.rfind("]") + 1
+        if start != -1 and end > start:
+            raw = raw[start:end]
         analysis = _json.loads(raw)
         if not isinstance(analysis, list):
             analysis = []
     except Exception as exc:
-        return jsonify({"analysis": [], "error": f"Claude error: {exc}"}), 500
+        return jsonify({"analysis": [], "error": f"Claude error: {exc}"})
 
     return jsonify({"analysis": analysis, "error": None})

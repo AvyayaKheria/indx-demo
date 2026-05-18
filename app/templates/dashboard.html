@@ -3505,33 +3505,36 @@
     const errEl    = document.getElementById('bva-analysis-err');
 
     fetch('/api/bva-analysis/' + SESSION_ID)
-      .then(function(r) { if (!r.ok) throw new Error('Server ' + r.status); return r.json(); })
+      .then(function(r) { return r.json(); })   // always 200 — errors are in JSON
       .then(function(data) {
         loading.style.display = 'none';
-        if (data.error && (!data.analysis || data.analysis.length === 0)) {
+        if (data.error) {
           errEl.textContent = '⚠ ' + data.error;
           errEl.style.display = 'block';
           return;
         }
         var items = data.analysis || [];
-        if (items.length === 0) { loading.textContent = 'No significant variances detected.'; loading.style.display = ''; return; }
+        if (items.length === 0) {
+          loading.textContent = 'No significant variances detected.';
+          loading.style.display = '';
+          return;
+        }
         cards.style.display = 'flex';
         cards.innerHTML = items.map(function(a) {
-          var fav = a.is_favourable;
+          // Detect favourable: "above budget" or "under budget" → good
+          var vtext = (a.variance || '').toLowerCase();
+          var fav = vtext.indexOf('above') !== -1 || vtext.indexOf('under budget') !== -1;
           var cls = fav ? 'bva-ac-fav' : 'bva-ac-unfav';
-          var sign = a.variance_abs >= 0 ? '+' : '';
-          var varPct = a.variance_pct != null ? ' (' + (a.variance_pct >= 0 ? '+' : '') + a.variance_pct.toFixed(1) + '%)' : '';
           return '<div class="bva-analysis-card ' + cls + '">'
-            + '<div class="bva-ac-item">' + (a.item || '') + '</div>'
-            + '<div class="bva-ac-var">' + sign + '$' + Math.abs(a.variance_abs || 0).toLocaleString() + varPct + (fav ? ' — Favourable' : ' — Unfavourable') + '</div>'
+            + '<div class="bva-ac-item">' + (a.variance || '') + '</div>'
             + '<div class="bva-ac-explain">' + (a.explanation || '') + '</div>'
             + '<div class="bva-ac-rec">💡 ' + (a.recommendation || '') + '</div>'
             + '</div>';
         }).join('');
       })
-      .catch(function() {
+      .catch(function(e) {
         loading.style.display = 'none';
-        errEl.textContent = '⚠ Unable to load variance analysis';
+        errEl.textContent = '⚠ ' + (e.message || 'Unable to load variance analysis');
         errEl.style.display = 'block';
       });
   })();
